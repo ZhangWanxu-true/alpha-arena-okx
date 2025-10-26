@@ -1,6 +1,9 @@
 # BTC自动交易机器人 🤖
 
-基于DeepSeek AI + OKX交易所的智能加密货币交易机器人，结合技术指标分析和市场情绪数据，实现全自动化交易。
+基于DeepSeek or Qwen3-MAX AI + OKX交易所的智能加密货币交易机器人，结合技术指标分析和市场情绪数据，实现全自动化交易。
+<img width="1892" height="844" alt="{8AA6FF7B-F3CA-4C76-A252-9CC7E1C11B7E}" src="https://github.com/user-attachments/assets/b9e0fcf8-0410-498c-9372-7a1ac2efb3f2" />
+<img width="1882" height="904" alt="{1E1C1636-2F28-4A92-A8B9-1C2EF3B52FCE}" src="https://github.com/user-attachments/assets/b51b45ca-3c24-4e5c-8a5a-6c11f7b10e7c" />
+
 
 ## ✨ 核心特性
 
@@ -462,3 +465,4 @@ ds-main/
 
 如有问题，请查看控制台日志或检查配置文件。
 打赏地址：0xddf4924195e872d34a72220d0e45d3020790da89
+<img width="556" height="240" alt="{FC64115A-8CF4-4709-ADA7-2144940CC3FD}" src="https://github.com/user-attachments/assets/2a27ae0d-b73d-4f8a-bba4-b50252596e2f" />

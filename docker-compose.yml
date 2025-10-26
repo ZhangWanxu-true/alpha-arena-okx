@@ -1,0 +1,40 @@
+version: '3.8'
+
+services:
+  btc-trading-bot:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: btc-trading-bot
+    restart: unless-stopped
+    ports:
+      - "8080:8080"
+    volumes:
+      # 挂载.env文件（必需）
+      - ./.env:/app/.env:ro
+      # 持久化数据（可选）
+      - ./data:/app/data
+    environment:
+      - TZ=Asia/Shanghai
+    # 资源限制（可选）
+    deploy:
+      resources:
+        limits:
+          cpus: '1'
+          memory: 1G
+        reservations:
+          cpus: '0.5'
+          memory: 512M
+    # 健康检查
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/api/dashboard"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+

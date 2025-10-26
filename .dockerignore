@@ -1,0 +1,53 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+
+# 虚拟环境
+venv/
+env/
+ENV/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Git
+.git/
+.gitignore
+.gitattributes
+
+# 文档
+*.md
+!README.md
+
+# 日志
+*.log
+
+# 数据文件
+data/
+*.csv
+*.json
+
+# 临时文件
+tmp/
+temp/
+*.tmp
+
+# Windows
+Thumbs.db
+desktop.ini
+
+# macOS
+.DS_Store
+
+# 其他
+*.bat
+.env.example
+.env_template
+

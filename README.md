@@ -47,13 +47,70 @@
 
 ### 1. 环境要求
 
-- **Python**: 3.8+
+- **Python**: 3.8+ 或 **Docker**: 20.10+
 - **操作系统**: Windows / Linux / macOS
 - **依赖**: 见 `requirements.txt`
 
-### 2. 安装步骤
+### 2. 部署方式
 
-#### Windows
+提供三种部署方式，任选其一：
+
+#### 方式一：Docker部署 🐳 (推荐)
+
+**优势**: 无需安装Python环境，一键启动，环境隔离
+
+💡 **详细Docker部署指南**: 查看 [DOCKER_GUIDE.md](DOCKER_GUIDE.md) 获取完整Docker配置和故障排查说明
+
+##### 2.1 前置要求
+- 安装 [Docker](https://www.docker.com/get-started) 
+- 安装 [Docker Compose](https://docs.docker.com/compose/install/)
+
+##### 2.2 快速启动
+
+```bash
+# 1. 克隆项目
+git clone <your-repo-url>
+cd ds-main
+
+# 2. 创建配置文件
+cp .env.example .env
+# 编辑.env文件，填入你的API密钥
+
+# 3. 启动容器
+docker-compose up -d
+
+# 4. 查看日志
+docker-compose logs -f
+
+# 5. 停止服务
+docker-compose down
+```
+
+##### 2.3 常用命令
+
+```bash
+# 查看运行状态
+docker-compose ps
+
+# 重启服务
+docker-compose restart
+
+# 更新镜像并重启
+docker-compose pull
+docker-compose up -d
+
+# 进入容器调试
+docker-compose exec btc-trading-bot bash
+
+# 查看实时日志
+docker-compose logs -f --tail=100
+```
+
+**访问地址**: http://localhost:8080
+
+---
+
+#### 方式二：Python虚拟环境 (Windows)
 
 ```bash
 # 1. 创建虚拟环境
@@ -66,7 +123,9 @@ python -m venv venv
 pip install -r requirements.txt
 ```
 
-#### Linux/macOS
+---
+
+#### 方式三：Python虚拟环境 (Linux/macOS)
 
 ```bash
 # 1. 创建虚拟环境
@@ -150,7 +209,59 @@ TRADE_CONFIG = {
 
 ## 📱 使用方法
 
-### 方式一：Web界面监控（推荐）
+### 方式一：Docker运行（推荐）🐳
+
+#### 快速启动（推荐新手）
+
+**Windows用户**:
+```bash
+# 双击运行
+start_docker.bat
+
+# 或命令行
+.\start_docker.bat
+```
+
+**Linux/macOS用户**:
+```bash
+# 添加执行权限（首次）
+chmod +x start_docker.sh
+
+# 运行
+./start_docker.sh
+```
+
+启动脚本会自动检查Docker环境、配置文件并启动服务。
+
+#### 手动启动（高级用户）
+
+```bash
+# 启动服务
+docker-compose up -d
+
+# 查看运行日志
+docker-compose logs -f
+
+# 停止服务
+docker-compose down
+
+# 重启服务
+docker-compose restart
+```
+
+**访问地址**: http://localhost:8080
+
+**Docker优势**:
+- ✅ 无需配置Python环境
+- ✅ 自动重启（容器崩溃后自动恢复）
+- ✅ 资源限制和健康检查
+- ✅ 日志自动管理
+- ✅ 一键更新升级
+- ✅ 跨平台统一环境
+
+---
+
+### 方式二：Web界面监控（Python环境）
 
 #### Windows
 ```bash
@@ -178,7 +289,9 @@ python web_server.py
 - 📈 追踪交易记录和盈亏
 - 📉 分析信号分布统计
 
-### 方式二：命令行运行
+---
+
+### 方式三：命令行运行
 
 ```bash
 .\venv\Scripts\activate   # Windows
@@ -284,6 +397,59 @@ python deepseekok2.py
 
 ## ⚙️ 高级配置
 
+### Docker配置
+
+#### 修改端口映射
+
+编辑 `docker-compose.yml`:
+
+```yaml
+ports:
+  - "8888:8080"  # 将本地8888端口映射到容器8080端口
+```
+
+#### 调整资源限制
+
+编辑 `docker-compose.yml`:
+
+```yaml
+deploy:
+  resources:
+    limits:
+      cpus: '2'      # 最多使用2个CPU核心
+      memory: 2G     # 最多使用2GB内存
+    reservations:
+      cpus: '1'      # 保留1个CPU核心
+      memory: 1G     # 保留1GB内存
+```
+
+#### 数据持久化
+
+在 `docker-compose.yml` 中已配置：
+
+```yaml
+volumes:
+  - ./data:/app/data  # 持久化数据目录
+```
+
+#### 环境变量配置
+
+方式1：使用 `.env` 文件（推荐）
+```bash
+# 编辑 .env 文件
+AI_PROVIDER=deepseek
+DEEPSEEK_API_KEY=sk-xxx...
+```
+
+方式2：在 `docker-compose.yml` 中直接设置
+```yaml
+environment:
+  - AI_PROVIDER=deepseek
+  - DEEPSEEK_API_KEY=sk-xxx...
+```
+
+---
+
 ### 修改刷新频率
 
 编辑 `static/js/app.js`:
@@ -293,13 +459,33 @@ setInterval(updateData, 10000);  // 10秒
 // 可改为: 5000(5秒) 或 30000(30秒)
 ```
 
+**Docker用户**：修改后需重启容器
+```bash
+docker-compose restart
+```
+
+---
+
 ### 修改Web端口
+
+#### Python环境
 
 编辑 `web_server.py`:
 
 ```python
 PORT = 8080  # 改为其他端口
 ```
+
+#### Docker环境
+
+编辑 `docker-compose.yml`:
+
+```yaml
+ports:
+  - "8888:8080"  # 改为8888端口
+```
+
+---
 
 ### 切换测试/实盘模式
 
@@ -308,6 +494,11 @@ PORT = 8080  # 改为其他端口
 ```python
 'test_mode': True,   # True=模拟测试
 'test_mode': False,  # False=实盘交易
+```
+
+**Docker用户**：修改后需重启容器
+```bash
+docker-compose restart
 ```
 
 ### 切换AI模型
@@ -371,10 +562,16 @@ ds-main/
 ├── web_server.py            # Web服务器
 ├── requirements.txt         # Python依赖
 ├── .env                     # 配置文件（需自己创建，不会被Git追踪）
-├── .env_template            # 配置模板（可安全提交）
+├── .env.example             # 配置模板（示例文件）
 ├── .gitignore              # Git忽略文件（保护敏感信息）
-├── start_web.bat           # Windows启动脚本
+├── Dockerfile              # Docker镜像构建文件
+├── docker-compose.yml      # Docker编排配置
+├── .dockerignore           # Docker构建忽略文件
+├── start_docker.bat        # Docker启动脚本（Windows）
+├── start_docker.sh         # Docker启动脚本（Linux/macOS）
+├── start_web.bat           # Python启动脚本（Windows）
 ├── README.md               # 本文件
+├── DOCKER_GUIDE.md         # Docker部署详细指南
 ├── GIT_GUIDE.md            # Git使用指南
 ├── ENV_CONFIG.md           # 环境配置详解
 ├── templates/              # HTML模板
@@ -390,13 +587,57 @@ ds-main/
 
 ## 🐛 常见问题
 
-### 1. 端口被占用
+### Docker相关
+
+#### 1. Docker容器无法启动
+```
+错误: Cannot connect to the Docker daemon
+解决: 
+  1. 确认Docker Desktop已启动
+  2. Windows: 检查Hyper-V是否启用
+  3. Linux: sudo systemctl start docker
+```
+
+#### 2. 端口8080被占用
+```
+错误: Bind for 0.0.0.0:8080 failed: port is already allocated
+解决: 
+  方法1: 停止占用端口的程序
+  方法2: 修改docker-compose.yml中的端口映射
+    ports:
+      - "8888:8080"  # 改为8888端口
+```
+
+#### 3. .env文件未生效
+```
+原因: 文件路径或格式错误
+解决:
+  1. 确认.env文件在项目根目录
+  2. 检查文件格式（无BOM，UTF-8编码）
+  3. 重启容器: docker-compose restart
+```
+
+#### 4. 查看Docker容器日志
+```bash
+# 查看所有日志
+docker-compose logs
+
+# 实时查看最近100行
+docker-compose logs -f --tail=100
+
+# 查看特定服务
+docker-compose logs btc-trading-bot
+```
+
+### 应用相关
+
+#### 5. 端口被占用（非Docker）
 ```
 错误: Address already in use
 解决: 修改PORT或关闭占用进程
 ```
 
-### 2. AI模型连接失败
+#### 6. AI模型连接失败
 ```
 现象: 网页显示"🔴 连接失败"
 原因: API密钥错误、网络问题或余额不足
@@ -405,31 +646,35 @@ ds-main/
   2. 确认网络可以访问对应API服务
   3. 检查API账户余额是否充足
   4. 鼠标悬停在"连接失败"上查看详细错误信息
+  5. Docker用户: 检查容器内网络连接
+     docker-compose exec btc-trading-bot ping -c 4 api.deepseek.com
 ```
 
-### 3. API调用失败
+#### 7. API调用失败
 ```
 错误: DeepSeek/Qwen返回空响应
 解决: 检查API密钥和网络连接，查看控制台日志
 ```
 
-### 4. 数据显示为空
+#### 8. 数据显示为空
 ```
 原因: 等待15分钟整点首次执行
 解决: 耐心等待或查看控制台日志
 ```
 
-### 5. 交易执行失败
+#### 9. 交易执行失败
 ```
 原因: 保证金不足或API权限不足
 解决: 充值USDT或检查API权限
 ```
 
-### 6. AI模型切换后状态未更新
+#### 10. AI模型切换后状态未更新
 ```
 原因: 缓存或未重启服务
 解决: 
-  1. 修改.env文件后需要重启Web服务器
+  1. 修改.env文件后需要重启服务
+     Docker: docker-compose restart
+     Python: 重启web_server.py
   2. 清除浏览器缓存后刷新页面
   3. 检查控制台日志确认使用的模型
 ```
@@ -438,9 +683,17 @@ ds-main/
 
 ## 📚 更多资源
 
+### 项目文档
+- **Docker部署指南**: [DOCKER_GUIDE.md](DOCKER_GUIDE.md) - Docker完整配置和故障排查
+- **环境配置详解**: [ENV_CONFIG.md](ENV_CONFIG.md) - API密钥配置说明
+- **Git使用指南**: [GIT_GUIDE.md](GIT_GUIDE.md) - 版本控制和安全提交
+
+### 外部资源
 - **DeepSeek文档**: https://platform.deepseek.com/docs
+- **阿里百炼文档**: https://help.aliyun.com/zh/dashscope/
 - **OKX API文档**: https://www.okx.com/docs-v5/
 - **CCXT文档**: https://docs.ccxt.com/
+- **Docker文档**: https://docs.docker.com/
 
 ---
 

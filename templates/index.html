@@ -1,0 +1,222 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>BTC自动交易机器人 - 实时监控面板</title>
+    <link rel="stylesheet" href="/static/css/style.css">
+    <script src="https://cdn.jsdelivr.net/npm/echarts@5.4.3/dist/echarts.min.js"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+</head>
+<body>
+    <div class="container">
+        <!-- 头部 -->
+        <header class="header">
+            <div class="header-left">
+                <i class="fas fa-robot"></i>
+                <h1>BTC自动交易机器人</h1>
+                <span class="status-badge" id="statusBadge">运行中</span>
+            </div>
+            <div class="header-center">
+                <div class="ai-model-info">
+                    <i class="fas fa-brain"></i>
+                    <div class="ai-model-details">
+                        <div class="ai-model-name" id="aiModelName">加载中...</div>
+                        <div class="ai-model-status">
+                            <span class="status-dot" id="aiStatusDot"></span>
+                            <span class="status-text" id="aiStatusText">检测中</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="header-right">
+                <div class="update-time">
+                    <i class="far fa-clock"></i>
+                    <span id="lastUpdate">--</span>
+                </div>
+            </div>
+        </header>
+
+        <!-- 顶部卡片区 -->
+        <div class="top-cards">
+            <!-- 账户信息 -->
+            <div class="card account-card">
+                <div class="card-header">
+                    <i class="fas fa-wallet"></i>
+                    <h3>账户信息</h3>
+                </div>
+                <div class="card-body">
+                    <div class="info-item">
+                        <span class="label">可用余额</span>
+                        <span class="value" id="usdtBalance">--</span>
+                    </div>
+                    <div class="info-item">
+                        <span class="label">总权益</span>
+                        <span class="value" id="totalEquity">--</span>
+                    </div>
+                    <div class="info-item">
+                        <span class="label">杠杆倍数</span>
+                        <span class="value leverage" id="leverage">--</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 当前价格 -->
+            <div class="card price-card">
+                <div class="card-header">
+                    <i class="fab fa-bitcoin"></i>
+                    <h3>BTC/USDT</h3>
+                </div>
+                <div class="card-body">
+                    <div class="price-display">
+                        <span class="price" id="currentPrice">--</span>
+                        <span class="price-change" id="priceChange">--</span>
+                    </div>
+                    <div class="price-info">
+                        <div class="info-item">
+                            <span class="label">交易周期</span>
+                            <span class="value" id="timeframe">--</span>
+                        </div>
+                        <div class="info-item">
+                            <span class="label">模式</span>
+                            <span class="value" id="tradeMode">--</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 持仓信息 -->
+            <div class="card position-card">
+                <div class="card-header">
+                    <i class="fas fa-chart-line"></i>
+                    <h3>当前持仓</h3>
+                </div>
+                <div class="card-body">
+                    <div class="position-display">
+                        <div class="position-type" id="positionType">无持仓</div>
+                        <div class="position-size" id="positionSize">--</div>
+                    </div>
+                    <div class="info-item">
+                        <span class="label">入场价格</span>
+                        <span class="value" id="entryPrice">--</span>
+                    </div>
+                    <div class="info-item">
+                        <span class="label">未实现盈亏</span>
+                        <span class="value pnl" id="unrealizedPnl">--</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 绩效统计 -->
+            <div class="card performance-card">
+                <div class="card-header">
+                    <i class="fas fa-trophy"></i>
+                    <h3>绩效统计</h3>
+                </div>
+                <div class="card-body">
+                    <div class="info-item">
+                        <span class="label">总盈亏</span>
+                        <span class="value pnl" id="totalProfit">--</span>
+                    </div>
+                    <div class="info-item">
+                        <span class="label">胜率</span>
+                        <span class="value" id="winRate">--</span>
+                    </div>
+                    <div class="info-item">
+                        <span class="label">总交易次数</span>
+                        <span class="value" id="totalTrades">--</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 收益曲线图表区 -->
+        <div class="chart-section">
+            <div class="card chart-card">
+                <div class="card-header">
+                    <i class="fas fa-chart-line"></i>
+                    <h3>收益曲线</h3>
+                </div>
+                <div class="card-body">
+                    <div id="profitChart" class="chart"></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 下半部分：AI决策 + 交易记录 -->
+        <div class="bottom-section">
+            <!-- AI决策 -->
+            <div class="card ai-card">
+                <div class="card-header">
+                    <i class="fas fa-brain"></i>
+                    <h3>AI实时决策</h3>
+                </div>
+                <div class="card-body">
+                    <div class="ai-latest" id="latestDecision">
+                        <div class="ai-signal">
+                            <span class="signal-badge">--</span>
+                            <span class="confidence-badge">--</span>
+                        </div>
+                        <div class="ai-reason">等待AI分析...</div>
+                        <div class="ai-prices">
+                            <span class="stop-loss">止损: --</span>
+                            <span class="take-profit">止盈: --</span>
+                        </div>
+                    </div>
+                    <div class="ai-history" id="aiHistory">
+                        <!-- AI历史决策 -->
+                    </div>
+                </div>
+            </div>
+
+            <!-- 交易记录 -->
+            <div class="card trades-card">
+                <div class="card-header">
+                    <i class="fas fa-list"></i>
+                    <h3>交易记录</h3>
+                </div>
+                <div class="card-body">
+                    <div class="trades-table">
+                        <table id="tradesTable">
+                            <thead>
+                                <tr>
+                                    <th>时间</th>
+                                    <th>信号</th>
+                                    <th>价格</th>
+                                    <th>数量</th>
+                                    <th>信心</th>
+                                    <th>理由</th>
+                                </tr>
+                            </thead>
+                            <tbody id="tradesBody">
+                                <tr>
+                                    <td colspan="6" class="no-data">暂无交易记录</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 信号统计图表 -->
+        <div class="stats-section">
+            <div class="card stats-card">
+                <div class="card-header">
+                    <i class="fas fa-chart-pie"></i>
+                    <h3>信号分布统计</h3>
+                </div>
+                <div class="card-body">
+                    <div class="stats-charts">
+                        <div id="signalChart" class="mini-chart"></div>
+                        <div id="confidenceChart" class="mini-chart"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="/static/js/app.js"></script>
+</body>
+</html>
+

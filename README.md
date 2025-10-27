@@ -45,6 +45,13 @@
 
 ## 🚀 快速开始
 
+### 服务器部署，推荐美国vps服务器部署，价格便宜，访问速度。
+推荐美国老牌服务器厂商RackNerd稳定服务器**支持支付宝付款**
+- [推荐：满足要求型：1核心1G内存24GSSD2T带宽11.29美元/年](https://my.racknerd.com/aff.php?aff=13902&pid=903)
+- [进阶型：1核心2G内存40GSSD3.5T带宽18.29美元/年](https://my.racknerd.com/aff.php?aff=13902&pid=904)
+- [推荐型：2核心3.5G内存65GSSD7T带宽32.49美元/年](https://my.racknerd.com/aff.php?aff=13902&pid=905)
+- [高端型：4核心6G内存140GSSD12T带宽59.99美元/年](https://my.racknerd.com/aff.php?aff=13902&pid=907)
+
 ### 1. 环境要求
 
 - **Python**: 3.8+ 或 **Docker**: 20.10+
@@ -179,25 +186,31 @@ OKX_PASSWORD=xxxxxxxx
 
 **交易所：**
 
-3. **OKX API**: https://www.okx.com/
-   - 注册账号并完成KYC
+3. **OKX API**: https://www.gtohfmmy.com/join/6746503
+   - 使用邀请码注册并完成任务，最高获100usdt奖励
    - API管理 → 创建API
    - 权限：需要"交易"权限
    - **重要**：妥善保管密钥，不要泄露
 
 ### 4. 交易参数配置
 
+## 币价12万USDT,交易账户中至少有120USDT
+
 编辑 `deepseekok2.py` 文件中的配置：
 
 ```python
 TRADE_CONFIG = {
-    'symbol': 'BTC/USDT:USDT',  # 交易对
-    'amount': 0.01,             # 每次交易数量(BTC)
-    'leverage': 10,             # 杠杆倍数
-    'timeframe': '15m',         # K线周期
-    'test_mode': False,         # True=模拟 False=实盘
-    'data_points': 96,          # 分析数据点数
-}
+    'symbol': 'BTC/USDT:USDT',  # OKX的合约符号格式
+    'margin_usdt': 120,  # 🔧 修改这里：每次交易投入的保证金(USDT)最小为0.01btc，即币价120000时应投入120USDT*10倍杠杆=1200
+    'leverage': 10,  # 🔧 修改这里：杠杆倍数 (建议10-20倍)
+    'position_usdt': None,  # 自动计算：实际开仓金额 = margin_usdt * leverage
+    'timeframe': '15m',  # 使用15分钟K线
+    'test_mode': False,  # 🔧 测试模式：True=模拟不下单，False=真实交易
+    'data_points': 96,  # 24小时数据（96根15分钟K线）
+    'analysis_periods': {
+        'short_term': 20,  # 短期均线
+        'medium_term': 50,  # 中期均线
+        'long_term': 96  # 长期趋势
 ```
 
 ⚠️ **首次使用建议**：

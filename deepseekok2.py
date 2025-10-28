@@ -872,6 +872,35 @@ def check_close_position(current_position, price_data):
         unrealized_pnl = current_position['unrealized_pnl']
         size = current_position['size']
         
+        # 🛡️ 防止刚开仓就平仓：检查持仓时间
+        # 根据时间周期设置最小持仓时间
+        timeframe = TRADE_CONFIG.get('timeframe', '1h')
+        if timeframe == '1h':
+            min_hold_minutes = 60  # 1小时周期，至少持仓1小时
+        elif timeframe == '4h':
+            min_hold_minutes = 240  # 4小时周期，至少持仓4小时
+        elif timeframe == '15m':
+            min_hold_minutes = 30  # 15分钟周期，至少持仓30分钟
+        else:
+            min_hold_minutes = 60  # 默认1小时
+        
+        # 检查是否有最近的开仓记录
+        if web_data.get('trade_history'):
+            last_trade = web_data['trade_history'][-1]
+            if last_trade.get('signal') in ['BUY', 'SELL']:
+                from datetime import datetime
+                try:
+                    trade_time = datetime.strptime(last_trade['timestamp'], '%Y-%m-%d %H:%M:%S')
+                    now = datetime.now()
+                    hold_minutes = (now - trade_time).total_seconds() / 60
+                    
+                    if hold_minutes < min_hold_minutes:
+                        print(f"⏰ 持仓时间不足 ({hold_minutes:.1f}分钟 < {min_hold_minutes}分钟)")
+                        print(f"   跳过AI平仓检查，避免频繁开平仓")
+                        return None
+                except:
+                    pass  # 如果时间解析失败，继续执行
+        
         # 计算盈亏比例
         if side == 'long':
             pnl_percent = ((current_price - entry_price) / entry_price) * 100
@@ -1056,38 +1085,27 @@ def execute_trade(signal_data, price_data):
     """执行交易 - OKX版本（增强止盈止损）"""
     global position, web_data
 
+    # 🛡️ 防御性检查1：HOLD信号不执行交易
+    if signal_data['signal'] == 'HOLD':
+        print(f"📊 交易信号: HOLD (保持观望)")
+        print(f"   理由: {signal_data.get('reason', '暂不交易')}")
+        return
+
+    # 🛡️ 防御性检查2：如果有持仓，不应该调用此函数（由trading_bot保证）
     current_position = get_current_position()
-
-    # 🔴 紧急修复：防止频繁反转
-    if current_position and signal_data['signal'] != 'HOLD':
-        current_side = current_position['side']
-        # 修正：正确处理HOLD情况
-        if signal_data['signal'] == 'BUY':
-            new_side = 'long'
-        elif signal_data['signal'] == 'SELL':
-            new_side = 'short'
-        else:  # HOLD
-            new_side = None
-
-        # 如果只是方向反转，需要高信心才执行
-        if new_side != current_side:
-            if signal_data['confidence'] != 'HIGH':
-                print(f"🔒 非高信心反转信号，保持现有{current_side}仓")
-                return
-
-            # 检查最近信号历史，避免频繁反转
-            if len(signal_history) >= 2:
-                last_signals = [s['signal'] for s in signal_history[-2:]]
-                if signal_data['signal'] in last_signals:
-                    print(f"🔒 近期已出现{signal_data['signal']}信号，避免频繁反转")
-                    return
+    if current_position:
+        print(f"⚠️ 警告：检测到持仓但仍调用execute_trade，这不应该发生！")
+        print(f"   当前持仓: {current_position['side']} {current_position['size']} BTC")
+        print(f"   新信号: {signal_data['signal']}")
+        print(f"   为安全起见，取消本次交易")
+        return
 
     print(f"交易信号: {signal_data['signal']}")
     print(f"信心程度: {signal_data['confidence']}")
     print(f"理由: {signal_data['reason']}")
     print(f"止损: ${signal_data['stop_loss']:,.2f}")
     print(f"止盈: ${signal_data['take_profit']:,.2f}")
-    print(f"当前持仓: {current_position}")
+    print(f"当前持仓: 无")
 
     # 风险管理：低信心信号不执行
     if signal_data['confidence'] == 'LOW' and not TRADE_CONFIG['test_mode']:
@@ -1185,126 +1203,63 @@ def execute_trade(signal_data, price_data):
         }
         
         if signal_data['signal'] == 'BUY':
-            if current_position and current_position['side'] == 'short':
-                print("平空仓并开多仓...")
-                # 平空仓
-                close_params = order_params.copy()
-                close_params['reduceOnly'] = True
-                exchange.create_market_order(
-                    TRADE_CONFIG['symbol'],
-                    'buy',
-                    current_position['size'],
-                    params=close_params
-                )
-                time.sleep(1)
-                # 开多仓（使用计算的张数）
-                try:
-                    display_btc = btc_amount * contract_size
-                    print(f"   准备买入: {btc_amount:.6f} 张 = {display_btc:.8f} BTC (价值 {position_usdt:.2f} USDT)")
-                except:
-                    print(f"   准备买入: {btc_amount:.6f} 张 (价值 {position_usdt:.2f} USDT)")
-                print(f"   📊 订单参数: {order_params}")
-                
-                order_response = exchange.create_market_order(
-                    TRADE_CONFIG['symbol'],
-                    'buy',
-                    btc_amount,
-                    params=order_params
-                )
-                
-                print(f"\n   📄 订单响应:")
-                print(f"   订单ID: {order_response.get('id', 'N/A')}")
-                print(f"   实际数量: {order_response.get('amount', 'N/A')} BTC")
-                print(f"   成交数量: {order_response.get('filled', 'N/A')} BTC")
-            elif current_position and current_position['side'] == 'long':
-                print("已有多头持仓，保持现状")
-            else:
-                # 无持仓时开多仓
-                print("开多仓...")
-                try:
-                    display_btc = btc_amount * contract_size
-                    print(f"   准备买入: {btc_amount:.6f} 张 = {display_btc:.8f} BTC (价值 {position_usdt:.2f} USDT)")
-                except:
-                    print(f"   准备买入: {btc_amount:.6f} 张 (价值 {position_usdt:.2f} USDT)")
-                print(f"   📊 订单参数: {order_params}")
-                
-                # 下单并获取订单响应
-                order_response = exchange.create_market_order(
-                    TRADE_CONFIG['symbol'],
-                    'buy',
-                    btc_amount,
-                    params=order_params
-                )
-                
-                # 打印订单响应详情
-                print(f"\n   📄 订单响应:")
-                print(f"   订单ID: {order_response.get('id', 'N/A')}")
-                print(f"   状态: {order_response.get('status', 'N/A')}")
-                print(f"   实际数量: {order_response.get('amount', 'N/A')} BTC")
-                print(f"   成交数量: {order_response.get('filled', 'N/A')} BTC")
-                print(f"   成交价格: ${order_response.get('price', order_response.get('average', 'N/A'))}")
-                if order_response.get('cost'):
-                    print(f"   成交金额: {order_response.get('cost', 'N/A')} USDT")
+            # 开多仓（因为已经保证了无持仓）
+            print("📈 开多仓...")
+            try:
+                display_btc = btc_amount * contract_size
+                print(f"   准备买入: {btc_amount:.6f} 张 = {display_btc:.8f} BTC (价值 {position_usdt:.2f} USDT)")
+            except:
+                print(f"   准备买入: {btc_amount:.6f} 张 (价值 {position_usdt:.2f} USDT)")
+            print(f"   📊 订单参数: {order_params}")
+            
+            # 下单并获取订单响应
+            order_response = exchange.create_market_order(
+                TRADE_CONFIG['symbol'],
+                'buy',
+                btc_amount,
+                params=order_params
+            )
+            
+            # 打印订单响应详情
+            print(f"\n   📄 订单响应:")
+            print(f"   订单ID: {order_response.get('id', 'N/A')}")
+            print(f"   状态: {order_response.get('status', 'N/A')}")
+            print(f"   实际数量: {order_response.get('amount', 'N/A')} BTC")
+            print(f"   成交数量: {order_response.get('filled', 'N/A')} BTC")
+            print(f"   成交价格: ${order_response.get('price', order_response.get('average', 'N/A'))}")
+            if order_response.get('cost'):
+                print(f"   成交金额: {order_response.get('cost', 'N/A')} USDT")
 
         elif signal_data['signal'] == 'SELL':
-            if current_position and current_position['side'] == 'long':
-                print("平多仓并开空仓...")
-                # 平多仓
-                close_params = order_params.copy()
-                close_params['reduceOnly'] = True
-                exchange.create_market_order(
-                    TRADE_CONFIG['symbol'],
-                    'sell',
-                    current_position['size'],
-                    params=close_params
-                )
-                time.sleep(1)
-                # 开空仓（使用计算的张数）
-                try:
-                    display_btc = btc_amount * contract_size
-                    print(f"   准备卖出: {btc_amount:.6f} 张 = {display_btc:.8f} BTC (价值 {position_usdt:.2f} USDT)")
-                except:
-                    print(f"   准备卖出: {btc_amount:.6f} 张 (价值 {position_usdt:.2f} USDT)")
-                print(f"   📊 订单参数: {order_params}")
-                
-                order_response = exchange.create_market_order(
-                    TRADE_CONFIG['symbol'],
-                    'sell',
-                    btc_amount,
-                    params=order_params
-                )
-                
-                print(f"\n   📄 订单响应:")
-                print(f"   订单ID: {order_response.get('id', 'N/A')}")
-                print(f"   实际数量: {order_response.get('amount', 'N/A')} BTC")
-                print(f"   成交数量: {order_response.get('filled', 'N/A')} BTC")
-            elif current_position and current_position['side'] == 'short':
-                print("已有空头持仓，保持现状")
-            else:
-                # 无持仓时开空仓
-                print("开空仓...")
-                try:
-                    display_btc = btc_amount * contract_size
-                    print(f"   准备卖出: {btc_amount:.6f} 张 = {display_btc:.8f} BTC (价值 {position_usdt:.2f} USDT)")
-                except:
-                    print(f"   准备卖出: {btc_amount:.6f} 张 (价值 {position_usdt:.2f} USDT)")
-                print(f"   📊 订单参数: {order_params}")
-                
-                order_response = exchange.create_market_order(
-                    TRADE_CONFIG['symbol'],
-                    'sell',
-                    btc_amount,
-                    params=order_params
-                )
-                
-                print(f"\n   📄 订单响应:")
-                print(f"   订单ID: {order_response.get('id', 'N/A')}")
-                print(f"   状态: {order_response.get('status', 'N/A')}")
-                print(f"   实际数量: {order_response.get('amount', 'N/A')} BTC")
-                print(f"   成交数量: {order_response.get('filled', 'N/A')} BTC")
-                print(f"   成交价格: ${order_response.get('price', order_response.get('average', 'N/A'))}")
-                if order_response.get('cost'):
-                    print(f"   成交金额: {order_response.get('cost', 'N/A')} USDT")
+            # 开空仓（因为已经保证了无持仓）
+            print("📉 开空仓...")
+            try:
+                display_btc = btc_amount * contract_size
+                print(f"   准备卖出: {btc_amount:.6f} 张 = {display_btc:.8f} BTC (价值 {position_usdt:.2f} USDT)")
+            except:
+                print(f"   准备卖出: {btc_amount:.6f} 张 (价值 {position_usdt:.2f} USDT)")
+            print(f"   📊 订单参数: {order_params}")
+            
+            order_response = exchange.create_market_order(
+                TRADE_CONFIG['symbol'],
+                'sell',
+                btc_amount,
+                params=order_params
+            )
+            
+            print(f"\n   📄 订单响应:")
+            print(f"   订单ID: {order_response.get('id', 'N/A')}")
+            print(f"   状态: {order_response.get('status', 'N/A')}")
+            print(f"   实际数量: {order_response.get('amount', 'N/A')} BTC")
+            print(f"   成交数量: {order_response.get('filled', 'N/A')} BTC")
+            print(f"   成交价格: ${order_response.get('price', order_response.get('average', 'N/A'))}")
+            if order_response.get('cost'):
+                print(f"   成交金额: {order_response.get('cost', 'N/A')} USDT")
+        
+        else:
+            # 理论上不会到这里，因为前面已经过滤了HOLD
+            print(f"⚠️ 未知信号: {signal_data['signal']}")
+            return
 
         print("✅ 订单提交成功")
         time.sleep(2)
@@ -1544,15 +1499,18 @@ def trading_bot():
                 
                 # 执行平仓
                 if execute_close_position(current_position, reason):
-                    print(f"✅ 平仓完成，继续分析新信号")
-                    # 平仓成功后，继续分析是否开新仓
+                    print(f"✅ 平仓完成，本次周期结束")
+                    # 平仓成功后，本周期结束，等待下一个周期再分析是否开新仓
+                    # 避免在同一周期内平仓后立即开仓
                 else:
                     print(f"❌ 平仓失败，跳过本次交易")
-                    return
+                return  # 关键：平仓后本周期结束，不再继续执行
             else:
-                print(f"\n✅ AI判断：保持持仓，继续观察")
-
-        # 3. 使用DeepSeek分析（带重试）
+                print(f"\n✅ AI判断：保持持仓，本周期结束")
+                return  # 关键：有持仓且保持时，本周期结束，不再分析新信号
+        
+        # 3. 只有在无持仓时才分析新信号
+        print(f"\n💡 当前无持仓，分析是否开仓...")
         signal_data = analyze_with_deepseek_with_retry(price_data)
 
         if signal_data.get('is_fallback', False):

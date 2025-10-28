@@ -662,30 +662,19 @@ def analyze_with_deepseek(price_data):
     try:
         print(f"⏳ 正在调用{AI_PROVIDER.upper()} API ({AI_MODEL})...")
         
-        # 添加重试机制
-        max_retries = 3
-        for retry in range(max_retries):
-            try:
-                response = ai_client.chat.completions.create(
-                    model=AI_MODEL,
-                    messages=[
-                        {"role": "system",
-                         "content": f"您是一位专业的交易员，专注于{TRADE_CONFIG['timeframe']}周期趋势分析。请结合K线形态和技术指标做出判断，并严格遵循JSON格式要求。"},
-                        {"role": "user", "content": prompt}
-                    ],
-                    stream=False,
-                    temperature=0.1,
-                    timeout=30.0  # 30秒超时
-                )
-                print("✓ API调用成功")
-                break
-            except Exception as retry_error:
-                if retry < max_retries - 1:
-                    wait_time = 2 ** retry  # 指数退避: 1s, 2s, 4s
-                    print(f"⚠️ API调用失败(第{retry+1}次)，{wait_time}秒后重试: {retry_error}")
-                    time.sleep(wait_time)
-                else:
-                    raise  # 最后一次重试失败，抛出异常
+        # 直接调用API（重试由外层 analyze_with_deepseek_with_retry 负责）
+        response = ai_client.chat.completions.create(
+            model=AI_MODEL,
+            messages=[
+                {"role": "system",
+                 "content": f"您是一位专业的交易员，专注于{TRADE_CONFIG['timeframe']}周期趋势分析。请结合K线形态和技术指标做出判断，并严格遵循JSON格式要求。"},
+                {"role": "user", "content": prompt}
+            ],
+            stream=False,
+            temperature=0.1,
+            timeout=30.0  # 30秒超时
+        )
+        print("✓ API调用成功")
         
         # 更新AI连接状态
         web_data['ai_model_info']['status'] = 'connected'
@@ -1321,25 +1310,40 @@ def execute_trade(signal_data, price_data):
         traceback.print_exc()
 
 
-def analyze_with_deepseek_with_retry(price_data, max_retries=2):
-    """带重试的DeepSeek分析"""
-    for attempt in range(max_retries):
+def analyze_with_deepseek_with_retry(price_data, max_attempts=3):
+    """带重试的DeepSeek分析（最多尝试3次）"""
+    for attempt in range(max_attempts):
         try:
+            print(f"\n{'='*60}")
+            print(f"🤖 AI分析 - 第 {attempt + 1}/{max_attempts} 次尝试")
+            print(f"{'='*60}")
+            
             signal_data = analyze_with_deepseek(price_data)
+            
+            # 检查返回结果是否有效
             if signal_data and not signal_data.get('is_fallback', False):
+                print(f"✅ AI分析成功（第 {attempt + 1} 次尝试）")
                 return signal_data
-
-            print(f"第{attempt + 1}次尝试失败，进行重试...")
-            time.sleep(2)
+            else:
+                print(f"⚠️ AI返回备用信号，准备重试...")
+                if attempt < max_attempts - 1:
+                    wait_time = 2 ** attempt  # 指数退避: 1s, 2s, 4s
+                    print(f"   等待 {wait_time} 秒后重试...")
+                    time.sleep(wait_time)
 
         except Exception as e:
-            print(f"第{attempt + 1}次尝试异常: {e}")
-            import traceback
-            traceback.print_exc()
-            if attempt == max_retries - 1:
-                return create_fallback_signal(price_data)
-            time.sleep(2)
+            print(f"❌ 第 {attempt + 1} 次尝试异常: {e}")
+            if attempt < max_attempts - 1:
+                wait_time = 2 ** attempt
+                print(f"   等待 {wait_time} 秒后重试...")
+                time.sleep(wait_time)
+            else:
+                print(f"❌ 所有尝试均失败，使用备用信号")
+                import traceback
+                traceback.print_exc()
 
+    # 所有尝试都失败，返回备用信号
+    print(f"\n⚠️ {max_attempts} 次尝试均未成功，使用保守备用信号")
     return create_fallback_signal(price_data)
 
 

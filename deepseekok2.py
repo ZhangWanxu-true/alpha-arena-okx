@@ -1310,40 +1310,45 @@ def execute_trade(signal_data, price_data):
         traceback.print_exc()
 
 
-def analyze_with_deepseek_with_retry(price_data, max_attempts=3):
-    """带重试的DeepSeek分析（最多尝试3次）"""
+def analyze_with_deepseek_with_retry(price_data, max_attempts=2):
+    """带重试的DeepSeek分析（最多尝试2次，仅在API调用失败时重试）"""
+    last_error = None
+    
     for attempt in range(max_attempts):
         try:
-            print(f"\n{'='*60}")
-            print(f"🤖 AI分析 - 第 {attempt + 1}/{max_attempts} 次尝试")
-            print(f"{'='*60}")
+            if attempt > 0:
+                print(f"\n{'='*60}")
+                print(f"🔄 重试 AI分析 - 第 {attempt + 1}/{max_attempts} 次尝试")
+                print(f"{'='*60}")
             
             signal_data = analyze_with_deepseek(price_data)
             
-            # 检查返回结果是否有效
-            if signal_data and not signal_data.get('is_fallback', False):
-                print(f"✅ AI分析成功（第 {attempt + 1} 次尝试）")
+            # ✅ 关键修改：只要函数正常返回（无异常），就使用这个结果
+            # 即使是fallback信号，也说明AI API已经被调用过了（可能返回格式不对）
+            # 不应该因为格式问题而重复调用AI
+            if signal_data:
+                if signal_data.get('is_fallback', False):
+                    print(f"⚠️ AI返回内容不符合预期，使用备用信号（不重试）")
+                else:
+                    print(f"✅ AI分析成功")
                 return signal_data
-            else:
-                print(f"⚠️ AI返回备用信号，准备重试...")
-                if attempt < max_attempts - 1:
-                    wait_time = 2 ** attempt  # 指数退避: 1s, 2s, 4s
-                    print(f"   等待 {wait_time} 秒后重试...")
-                    time.sleep(wait_time)
 
         except Exception as e:
+            last_error = e
             print(f"❌ 第 {attempt + 1} 次尝试异常: {e}")
+            
+            # 只在API调用失败时重试
             if attempt < max_attempts - 1:
-                wait_time = 2 ** attempt
-                print(f"   等待 {wait_time} 秒后重试...")
+                wait_time = 2 ** attempt  # 指数退避: 1s, 2s
+                print(f"   {wait_time} 秒后重试...")
                 time.sleep(wait_time)
             else:
-                print(f"❌ 所有尝试均失败，使用备用信号")
+                print(f"❌ 所有尝试均失败")
                 import traceback
                 traceback.print_exc()
 
     # 所有尝试都失败，返回备用信号
-    print(f"\n⚠️ {max_attempts} 次尝试均未成功，使用保守备用信号")
+    print(f"\n⚠️ API调用失败，使用保守备用信号")
     return create_fallback_signal(price_data)
 
 

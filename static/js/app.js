@@ -7,8 +7,11 @@ let confidenceChart = null;
 document.addEventListener('DOMContentLoaded', function() {
     initCharts();
     updateData();
+    updateTimes(); // 立即更新时间
     // 每10秒更新一次数据
     setInterval(updateData, 10000);
+    // 每秒更新时间显示
+    setInterval(updateTimes, 1000);
 });
 
 // 初始化图表
@@ -160,14 +163,41 @@ async function updateDashboard() {
             data.performance?.win_rate ? `${data.performance.win_rate.toFixed(1)}%` : '--';
         document.getElementById('totalTrades').textContent = 
             data.performance?.total_trades || '0';
-        
-        // 更新时间
-        document.getElementById('lastUpdate').textContent = 
-            data.last_update || '--';
             
     } catch (error) {
         console.error('仪表板更新失败:', error);
     }
+}
+
+// 更新时间显示
+function updateTimes() {
+    try {
+        const now = new Date();
+        
+        // 北京时间 (UTC+8)
+        const beijingTime = new Date(now.toLocaleString('en-US', { timeZone: 'Asia/Shanghai' }));
+        const beijingTimeStr = formatDateTime(beijingTime);
+        document.getElementById('beijingTime').textContent = beijingTimeStr;
+        
+        // 服务器时间（本地时间）
+        const serverTimeStr = formatDateTime(now);
+        document.getElementById('serverTime').textContent = serverTimeStr;
+        
+    } catch (error) {
+        console.error('时间更新失败:', error);
+    }
+}
+
+// 格式化日期时间
+function formatDateTime(date) {
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
+    const hours = String(date.getHours()).padStart(2, '0');
+    const minutes = String(date.getMinutes()).padStart(2, '0');
+    const seconds = String(date.getSeconds()).padStart(2, '0');
+    
+    return `${year}-${month}-${day} ${hours}:${minutes}:${seconds}`;
 }
 
 // 更新K线图

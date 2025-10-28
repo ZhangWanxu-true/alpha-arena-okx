@@ -24,6 +24,7 @@
 
 ### 🌐 Web监控面板
 - ✅ **AI模型状态监控**：实时显示使用的AI模型和连接状态
+- ✅ **双时间显示**：同时显示北京时间和服务器时间（每秒更新）
 - ✅ 实时账户信息和持仓展示
 - ✅ 收益曲线图表：可视化账户权益、盈亏和收益率变化
 - ✅ 专业K线图表（ECharts，支持缩放拖动）
@@ -35,15 +36,27 @@
 - ✅ 响应式设计支持移动端
 
 ### 🔒 风险管理
-- 杠杆交易支持（可配置）
-- 止损/止盈自动设置
-- 保证金检查
-- 信心等级过滤
-- 持仓跟踪
+- ✅ **智能止盈止损**：开仓后自动设置止盈止损订单
+- ✅ **AI智能平仓**：持仓期间实时分析，及时止盈或止损
+- ✅ **多重平仓条件**：盈利3-8%自动止盈，亏损2-3%自动止损
+- ✅ **趋势反转检测**：识别反转信号，避免利润回吐
+- ✅ 杠杆交易支持（可配置）
+- ✅ 保证金检查
+- ✅ 信心等级过滤
+- ✅ 持仓跟踪
 
 ---
 
 ## 🚀 快速开始
+
+### 部署方式选择
+
+| 部署方式 | 难度 | 适用场景 | 推荐度 |
+|---------|------|---------|--------|
+| **宝塔面板** | ⭐ 简单 | 国内VPS、图形化管理 | ⭐⭐⭐⭐⭐ |
+| **Docker** | ⭐⭐ 中等 | 生产环境、容器化 | ⭐⭐⭐⭐ |
+| **进程守护** | ⭐⭐⭐ 较难 | 本地/VPS、Python环境 | ⭐⭐⭐ |
+| **直接运行** | ⭐ 简单 | 开发测试 | ⭐⭐ |
 
 ### 服务器部署，推荐美国vps服务器部署，价格便宜，访问速度。
 推荐美国老牌服务器厂商RackNerd稳定服务器**支持支付宝付款**
@@ -274,7 +287,46 @@ docker-compose restart
 
 ---
 
-### 方式二：Web界面监控（Python环境）
+### 方式二：进程守护模式（推荐长期运行）🛡️
+
+**适用场景**: 7×24小时运行，自动监控和恢复
+
+#### 核心功能
+- ✅ 自动监控AI决策是否正常输出
+- ✅ 进程崩溃自动重启
+- ✅ API调用超时自动恢复
+- ✅ 5分钟无响应自动重启
+- ✅ 详细日志记录
+
+#### Windows启动
+```bash
+# 双击运行或命令行执行
+start_guardian.bat
+```
+
+#### Linux/macOS启动
+```bash
+# 添加执行权限（首次）
+chmod +x start_guardian.sh
+
+# 运行
+./start_guardian.sh
+```
+
+**查看日志**:
+```bash
+# 实时查看
+tail -f guardian.log
+
+# Windows
+type guardian.log
+```
+
+💡 **详细说明**: 查看 [GUARDIAN_GUIDE.md](GUARDIAN_GUIDE.md) 了解完整配置和故障排查
+
+---
+
+### 方式三：Web界面监控（Python环境）
 
 #### Windows
 ```bash
@@ -283,19 +335,20 @@ start_web.bat
 
 # 方法2：命令行
 .\venv\Scripts\activate
-python web_server.py
+python app.py
 ```
 
 #### Linux/macOS
 ```bash
 source venv/bin/activate
-python web_server.py
+python app.py
 ```
 
 **访问地址**: http://localhost:8080
 
 **功能说明**:
 - 🧠 实时显示AI模型名称和连接状态
+- ⏰ 双时间显示（北京时间 + 服务器时间）
 - 📊 实时查看BTC价格和收益曲线
 - 🤖 监控AI决策和信号分析
 - 💰 查看账户余额和持仓情况
@@ -304,7 +357,7 @@ python web_server.py
 
 ---
 
-### 方式三：命令行运行
+### 方式四：命令行运行
 
 ```bash
 .\venv\Scripts\activate   # Windows
@@ -365,6 +418,12 @@ python deepseekok2.py
     - 🟡 **检测中** - 正在测试连接
   - 每10秒自动更新状态
   - 显示模型版本信息
+
+- **时间显示**:
+  - 北京时间（UTC+8）- 中国标准时间
+  - 服务器时间 - 服务器本地时间
+  - 每秒实时更新
+  - 等宽字体显示，清晰易读
 
 #### 顶部卡片（4个）
 1. **账户信息**: 余额、权益、杠杆
@@ -571,22 +630,27 @@ DASHSCOPE_API_KEY=sk-xxxxxxxx
 
 ```
 ds-main/
-├── deepseekok2.py           # 主程序（交易机器人）
-├── web_server.py            # Web服务器
+├── app.py                   # ⭐ 主入口文件（Web+机器人+守护）
+├── deepseekok2.py           # 交易机器人核心逻辑
+├── web_server.py            # 原Web服务器（本地开发用）
+├── process_guardian.py      # 独立进程守护（本地开发用）
 ├── requirements.txt         # Python依赖
-├── .env                     # 配置文件（需自己创建，不会被Git追踪）
-├── .env.example             # 配置模板（示例文件）
-├── .gitignore              # Git忽略文件（保护敏感信息）
-├── Dockerfile              # Docker镜像构建文件
+├── .env                     # 配置文件（需自己创建）
+├── .env.example             # 配置模板
+├── .gitignore              # Git忽略文件
+├── Dockerfile              # Docker镜像构建
 ├── docker-compose.yml      # Docker编排配置
-├── .dockerignore           # Docker构建忽略文件
-├── start_docker.bat        # Docker启动脚本（Windows）
-├── start_docker.sh         # Docker启动脚本（Linux/macOS）
-├── start_web.bat           # Python启动脚本（Windows）
+├── start_docker.bat        # Docker启动（Windows）
+├── start_docker.sh         # Docker启动（Linux/macOS）
+├── start_guardian.bat      # 守护进程启动（Windows）
+├── start_guardian.sh       # 守护进程启动（Linux/macOS）
+├── start_web.bat           # 统一启动脚本（Windows）
+├── app.log                 # 应用日志（运行时生成）
 ├── README.md               # 本文件
-├── DOCKER_GUIDE.md         # Docker部署详细指南
-├── GIT_GUIDE.md            # Git使用指南
-├── ENV_CONFIG.md           # 环境配置详解
+├── DOCKER_GUIDE.md         # Docker部署指南
+├── GUARDIAN_GUIDE.md       # 进程守护指南
+├── 宝塔面板部署指南.md     # 宝塔部署教程
+├── 止盈止损功能说明.md     # 止盈止损详解
 ├── templates/              # HTML模板
 │   └── index.html         
 └── static/                 # 静态资源
@@ -599,6 +663,40 @@ ds-main/
 ---
 
 ## 🐛 常见问题
+
+### 进程守护相关
+
+#### 1. 运行时间长了AI决策没有输出
+```
+原因: API超时、网络中断、进程异常
+解决: 使用进程守护模式自动监控和恢复
+  
+  # 启动守护模式
+  start_guardian.bat      # Windows
+  ./start_guardian.sh     # Linux/macOS
+```
+
+#### 2. 守护进程频繁重启
+```
+原因: API密钥错误、网络问题或配置错误
+解决:
+  1. 查看 guardian.log 日志
+  2. 检查 .env 配置文件
+  3. 测试网络连接
+  4. 验证API密钥有效性
+```
+
+#### 3. 查看守护日志
+```bash
+# 实时查看（Linux/macOS）
+tail -f guardian.log
+
+# 查看最近100行
+tail -n 100 guardian.log
+
+# Windows
+type guardian.log
+```
 
 ### Docker相关
 
@@ -698,6 +796,9 @@ docker-compose logs btc-trading-bot
 
 ### 项目文档
 - **Docker部署指南**: [DOCKER_GUIDE.md](DOCKER_GUIDE.md) - Docker完整配置和故障排查
+- **宝塔面板部署**: [宝塔面板部署指南.md](宝塔面板部署指南.md) - 宝塔面板一键部署
+- **进程守护指南**: [GUARDIAN_GUIDE.md](GUARDIAN_GUIDE.md) - 自动监控和故障恢复
+- **止盈止损说明**: [止盈止损功能说明.md](止盈止损功能说明.md) - 智能平仓和风险管理
 - **环境配置详解**: [ENV_CONFIG.md](ENV_CONFIG.md) - API密钥配置说明
 - **Git使用指南**: [GIT_GUIDE.md](GIT_GUIDE.md) - 版本控制和安全提交
 

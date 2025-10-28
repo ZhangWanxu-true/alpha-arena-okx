@@ -33,6 +33,7 @@ from dotenv import load_dotenv
 import json
 import requests
 from datetime import datetime, timedelta
+import pytz
 load_dotenv()
 
 # 初始化AI客户端
@@ -660,18 +661,31 @@ def analyze_with_deepseek(price_data):
 
     try:
         print(f"⏳ 正在调用{AI_PROVIDER.upper()} API ({AI_MODEL})...")
-        response = ai_client.chat.completions.create(
-            model=AI_MODEL,
-            messages=[
-                {"role": "system",
-                 "content": f"您是一位专业的交易员，专注于{TRADE_CONFIG['timeframe']}周期趋势分析。请结合K线形态和技术指标做出判断，并严格遵循JSON格式要求。"},
-                {"role": "user", "content": prompt}
-            ],
-            stream=False,
-            temperature=0.1,
-            timeout=30.0  # 30秒超时
-        )
-        print("✓ API调用成功")
+        
+        # 添加重试机制
+        max_retries = 3
+        for retry in range(max_retries):
+            try:
+                response = ai_client.chat.completions.create(
+                    model=AI_MODEL,
+                    messages=[
+                        {"role": "system",
+                         "content": f"您是一位专业的交易员，专注于{TRADE_CONFIG['timeframe']}周期趋势分析。请结合K线形态和技术指标做出判断，并严格遵循JSON格式要求。"},
+                        {"role": "user", "content": prompt}
+                    ],
+                    stream=False,
+                    temperature=0.1,
+                    timeout=30.0  # 30秒超时
+                )
+                print("✓ API调用成功")
+                break
+            except Exception as retry_error:
+                if retry < max_retries - 1:
+                    wait_time = 2 ** retry  # 指数退避: 1s, 2s, 4s
+                    print(f"⚠️ API调用失败(第{retry+1}次)，{wait_time}秒后重试: {retry_error}")
+                    time.sleep(wait_time)
+                else:
+                    raise  # 最后一次重试失败，抛出异常
         
         # 更新AI连接状态
         web_data['ai_model_info']['status'] = 'connected'
@@ -748,8 +762,298 @@ def analyze_with_deepseek(price_data):
         return create_fallback_signal(price_data)
 
 
+def set_stop_orders(position_info, stop_loss_price, take_profit_price):
+    """设置止盈止损订单"""
+    try:
+        if not position_info:
+            return False
+        
+        side = position_info['side']
+        size = position_info['size']
+        
+        print(f"\n{'='*50}")
+        print(f"📊 设置止盈止损订单")
+        print(f"   持仓方向: {side}")
+        print(f"   持仓数量: {size}")
+        print(f"   止损价格: ${stop_loss_price:,.2f}")
+        print(f"   止盈价格: ${take_profit_price:,.2f}")
+        print(f"{'='*50}\n")
+        
+        # OKX止盈止损参数
+        order_params = {
+            'tdMode': 'cross',
+            'tag': '60bb4a8d3416BCDE'
+        }
+        
+        try:
+            # 止损订单 (Stop Loss)
+            if side == 'long':
+                # 多仓止损：价格跌破止损价时卖出
+                sl_order = exchange.create_order(
+                    symbol=TRADE_CONFIG['symbol'],
+                    type='stop',
+                    side='sell',
+                    amount=size,
+                    price=None,
+                    params={
+                        **order_params,
+                        'stopLossPrice': stop_loss_price,
+                        'reduceOnly': True
+                    }
+                )
+                print(f"✅ 多仓止损订单已设置: ${stop_loss_price:,.2f}")
+                
+                # 止盈订单 (Take Profit)
+                tp_order = exchange.create_order(
+                    symbol=TRADE_CONFIG['symbol'],
+                    type='limit',
+                    side='sell',
+                    amount=size,
+                    price=take_profit_price,
+                    params={
+                        **order_params,
+                        'reduceOnly': True
+                    }
+                )
+                print(f"✅ 多仓止盈订单已设置: ${take_profit_price:,.2f}")
+                
+            else:  # short
+                # 空仓止损：价格涨破止损价时买入
+                sl_order = exchange.create_order(
+                    symbol=TRADE_CONFIG['symbol'],
+                    type='stop',
+                    side='buy',
+                    amount=size,
+                    price=None,
+                    params={
+                        **order_params,
+                        'stopLossPrice': stop_loss_price,
+                        'reduceOnly': True
+                    }
+                )
+                print(f"✅ 空仓止损订单已设置: ${stop_loss_price:,.2f}")
+                
+                # 止盈订单 (Take Profit)
+                tp_order = exchange.create_order(
+                    symbol=TRADE_CONFIG['symbol'],
+                    type='limit',
+                    side='buy',
+                    amount=size,
+                    price=take_profit_price,
+                    params={
+                        **order_params,
+                        'reduceOnly': True
+                    }
+                )
+                print(f"✅ 空仓止盈订单已设置: ${take_profit_price:,.2f}")
+            
+            print(f"✅ 止盈止损订单设置成功\n")
+            return True
+            
+        except Exception as e:
+            print(f"❌ 设置止盈止损订单失败: {e}")
+            # 即使失败也不影响主流程
+            return False
+            
+    except Exception as e:
+        print(f"❌ 止盈止损设置异常: {e}")
+        return False
+
+
+def check_close_position(current_position, price_data):
+    """检查是否需要平仓（AI智能决策）"""
+    if not current_position:
+        return None
+    
+    try:
+        side = current_position['side']
+        entry_price = current_position['entry_price']
+        current_price = price_data['price']
+        unrealized_pnl = current_position['unrealized_pnl']
+        size = current_position['size']
+        
+        # 计算盈亏比例
+        if side == 'long':
+            pnl_percent = ((current_price - entry_price) / entry_price) * 100
+        else:
+            pnl_percent = ((entry_price - current_price) / entry_price) * 100
+        
+        # 技术指标
+        tech = price_data['technical_data']
+        rsi = tech.get('rsi', 50)
+        macd = tech.get('macd', 0)
+        macd_signal = tech.get('macd_signal', 0)
+        bb_position = tech.get('bb_position', 0.5)
+        
+        print(f"\n{'='*60}")
+        print(f"📊 平仓检查")
+        print(f"   持仓方向: {side}")
+        print(f"   开仓价格: ${entry_price:,.2f}")
+        print(f"   当前价格: ${current_price:,.2f}")
+        print(f"   盈亏比例: {pnl_percent:+.2f}%")
+        print(f"   未实现盈亏: {unrealized_pnl:+.2f} USDT")
+        print(f"   RSI: {rsi:.1f}")
+        print(f"   MACD: {macd:.4f}")
+        print(f"   布林带位置: {bb_position:.2%}")
+        print(f"{'='*60}\n")
+        
+        # 构建平仓决策提示词
+        prompt = f"""
+你是专业的风险管理顾问。当前持有{side}仓位，需要判断是否应该平仓。
+
+【持仓信息】
+- 方向: {'多仓(做多)' if side == 'long' else '空仓(做空)'}
+- 开仓价格: ${entry_price:,.2f}
+- 当前价格: ${current_price:,.2f}
+- 盈亏比例: {pnl_percent:+.2f}%
+- 未实现盈亏: {unrealized_pnl:+.2f} USDT
+- 持仓数量: {size} BTC
+
+【技术指标】
+- RSI: {rsi:.1f} ({'超买' if rsi > 70 else '超卖' if rsi < 30 else '中性'})
+- MACD: {macd:.4f} ({'金叉' if macd > macd_signal else '死叉'})
+- 布林带位置: {bb_position:.2%} ({'上轨' if bb_position > 0.8 else '下轨' if bb_position < 0.2 else '中间'})
+
+【平仓判断规则】
+1. **止盈条件** (应该平仓锁定利润):
+   - 盈利 ≥ 3% 且技术指标转弱
+   - 盈利 ≥ 5% 且出现反转信号
+   - 盈利 ≥ 8% 无条件止盈
+   - 多仓: RSI>75 且价格触及布林带上轨
+   - 空仓: RSI<25 且价格触及布林带下轨
+
+2. **止损条件** (应该平仓减少损失):
+   - 亏损 ≥ 2% 且技术指标继续恶化
+   - 亏损 ≥ 3% 无条件止损
+   - 多仓: MACD死叉 + RSI<50
+   - 空仓: MACD金叉 + RSI>50
+
+3. **趋势反转** (应该平仓):
+   - 多仓: 明确下跌趋势形成
+   - 空仓: 明确上涨趋势形成
+   - MACD与价格背离
+
+4. **保持持仓** (不应该平仓):
+   - 盈亏在 -2% 到 +3% 之间
+   - 技术指标支持持仓方向
+   - 趋势未改变
+
+请基于以上信息判断是否应该平仓。
+
+请用JSON格式回复：
+{{
+    "should_close": true/false,
+    "reason": "详细理由",
+    "urgency": "HIGH|MEDIUM|LOW",
+    "expected_outcome": "止盈|止损|趋势反转|保持观望"
+}}
+"""
+        
+        print(f"⏳ 正在调用{AI_PROVIDER.upper()} 分析是否平仓...")
+        
+        response = ai_client.chat.completions.create(
+            model=AI_MODEL,
+            messages=[
+                {"role": "system", "content": "你是专业的风险管理顾问，帮助判断是否应该平仓。请严格遵循JSON格式。"},
+                {"role": "user", "content": prompt}
+            ],
+            temperature=0.1,
+            timeout=30.0
+        )
+        
+        result = response.choices[0].message.content
+        print(f"\n{AI_PROVIDER.upper()}平仓分析:")
+        print(result)
+        print()
+        
+        # 解析JSON
+        start_idx = result.find('{')
+        end_idx = result.rfind('}') + 1
+        
+        if start_idx != -1 and end_idx != 0:
+            json_str = result[start_idx:end_idx]
+            close_decision = safe_json_parse(json_str)
+            
+            if close_decision and close_decision.get('should_close'):
+                print(f"✅ AI建议平仓")
+                print(f"   理由: {close_decision.get('reason')}")
+                print(f"   紧急程度: {close_decision.get('urgency')}")
+                print(f"   预期结果: {close_decision.get('expected_outcome')}")
+                return close_decision
+            else:
+                print(f"✅ AI建议保持持仓")
+                return None
+        else:
+            print("⚠️ 无法解析AI回复")
+            return None
+            
+    except Exception as e:
+        print(f"❌ 平仓检查失败: {e}")
+        import traceback
+        traceback.print_exc()
+        return None
+
+
+def execute_close_position(current_position, reason="手动平仓"):
+    """执行平仓操作"""
+    try:
+        if not current_position:
+            print("⚠️ 无持仓，无需平仓")
+            return False
+        
+        side = current_position['side']
+        size = current_position['size']
+        
+        print(f"\n{'='*50}")
+        print(f"🔄 执行平仓")
+        print(f"   原因: {reason}")
+        print(f"   持仓方向: {side}")
+        print(f"   持仓数量: {size}")
+        print(f"{'='*50}\n")
+        
+        # 平仓参数
+        close_params = {
+            'tdMode': 'cross',
+            'reduceOnly': True,
+            'tag': '60bb4a8d3416BCDE'
+        }
+        
+        # 执行平仓（反向开仓）
+        close_side = 'sell' if side == 'long' else 'buy'
+        
+        order_response = exchange.create_market_order(
+            TRADE_CONFIG['symbol'],
+            close_side,
+            size,
+            params=close_params
+        )
+        
+        print(f"✅ 平仓订单已提交")
+        print(f"   订单ID: {order_response.get('id', 'N/A')}")
+        print(f"   成交数量: {order_response.get('filled', 'N/A')} BTC")
+        print(f"   成交价格: ${order_response.get('price', order_response.get('average', 'N/A'))}")
+        
+        # 等待订单完成
+        time.sleep(2)
+        
+        # 验证平仓
+        new_position = get_current_position()
+        if not new_position:
+            print(f"✅ 平仓成功，当前无持仓\n")
+            return True
+        else:
+            print(f"⚠️ 平仓后仍有持仓: {new_position}\n")
+            return False
+            
+    except Exception as e:
+        print(f"❌ 平仓失败: {e}")
+        import traceback
+        traceback.print_exc()
+        return False
+
+
 def execute_trade(signal_data, price_data):
-    """执行交易 - OKX版本（修复保证金检查）"""
+    """执行交易 - OKX版本（增强止盈止损）"""
     global position, web_data
 
     current_position = get_current_position()
@@ -1015,6 +1319,19 @@ def execute_trade(signal_data, price_data):
             print(f"   开仓价: ${position['entry_price']:,.2f}")
             print(f"   未实现盈亏: {position['unrealized_pnl']:+.2f} USDT")
             print(f"   杠杆: {position['leverage']}x")
+            
+            # 🎯 设置止盈止损订单
+            try:
+                stop_loss = signal_data.get('stop_loss', 0)
+                take_profit = signal_data.get('take_profit', 0)
+                
+                if stop_loss > 0 and take_profit > 0:
+                    print(f"\n⚙️ 正在设置止盈止损...")
+                    set_stop_orders(position, stop_loss, take_profit)
+                else:
+                    print(f"\n⚠️ 未设置止盈止损（价格无效）")
+            except Exception as e:
+                print(f"⚠️ 止盈止损设置失败: {e}")
         else:
             print(f"   无持仓")
         print(f"{'='*50}\n")
@@ -1180,96 +1497,142 @@ def test_order_amount():
 
 
 def trading_bot():
-    # 等待到整点再执行
-    wait_seconds = wait_for_next_period()
-    if wait_seconds > 0:
-        time.sleep(wait_seconds)
-
     """主交易机器人函数"""
     global web_data, initial_balance
     
-    print("\n" + "=" * 60)
-    print(f"执行时间: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
-    print("=" * 60)
-
-    # 1. 获取增强版K线数据
-    price_data = get_btc_ohlcv_enhanced()
-    if not price_data:
-        return
-
-    print(f"BTC当前价格: ${price_data['price']:,.2f}")
-    print(f"数据周期: {TRADE_CONFIG['timeframe']}")
-    print(f"价格变化: {price_data['price_change']:+.2f}%")
-
-    # 2. 使用DeepSeek分析（带重试）
-    signal_data = analyze_with_deepseek_with_retry(price_data)
-
-    if signal_data.get('is_fallback', False):
-        print("⚠️ 使用备用交易信号")
-
-    # 3. 更新Web数据
     try:
-        balance = exchange.fetch_balance()
-        current_equity = balance['USDT']['total']
+        # 等待到整点再执行
+        wait_seconds = wait_for_next_period()
+        if wait_seconds > 0:
+            time.sleep(wait_seconds)
         
-        # 设置初始余额
-        if initial_balance is None:
-            initial_balance = current_equity
-        
-        web_data['account_info'] = {
-            'usdt_balance': balance['USDT']['free'],
-            'total_equity': current_equity
-        }
-        
-        # 记录收益曲线数据
-        current_position = get_current_position()
-        unrealized_pnl = current_position.get('unrealized_pnl', 0) if current_position else 0
-        total_profit = current_equity - initial_balance
-        profit_rate = (total_profit / initial_balance * 100) if initial_balance > 0 else 0
-        
-        profit_point = {
-            'timestamp': datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
-            'equity': current_equity,
-            'profit': total_profit,
-            'profit_rate': profit_rate,
-            'unrealized_pnl': unrealized_pnl
-        }
-        web_data['profit_curve'].append(profit_point)
-        
-        # 只保留最近200个数据点（约50小时）
-        if len(web_data['profit_curve']) > 200:
-            web_data['profit_curve'].pop(0)
-            
-    except Exception as e:
-        print(f"更新余额失败: {e}")
-    
-    web_data['current_price'] = price_data['price']
-    web_data['current_position'] = get_current_position()
-    web_data['last_update'] = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-    
-    # 保存K线数据
-    web_data['kline_data'] = price_data['kline_data']
-    
-    # 保存AI决策
-    ai_decision = {
-        'timestamp': datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
-        'signal': signal_data['signal'],
-        'confidence': signal_data['confidence'],
-        'reason': signal_data['reason'],
-        'stop_loss': signal_data.get('stop_loss', 0),
-        'take_profit': signal_data.get('take_profit', 0),
-        'price': price_data['price']
-    }
-    web_data['ai_decisions'].append(ai_decision)
-    if len(web_data['ai_decisions']) > 50:  # 只保留最近50条
-        web_data['ai_decisions'].pop(0)
-    
-    # 更新性能统计
-    if web_data['current_position']:
-        web_data['performance']['total_profit'] = web_data['current_position'].get('unrealized_pnl', 0)
+        print("\n" + "=" * 60)
+        print(f"执行时间: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+        print("=" * 60)
 
-    # 4. 执行交易
-    execute_trade(signal_data, price_data)
+        # 1. 获取增强版K线数据
+        price_data = get_btc_ohlcv_enhanced()
+        if not price_data:
+            print("⚠️ 获取K线数据失败，跳过本次执行")
+            return
+
+        print(f"BTC当前价格: ${price_data['price']:,.2f}")
+        print(f"数据周期: {TRADE_CONFIG['timeframe']}")
+        print(f"价格变化: {price_data['price_change']:+.2f}%")
+
+        # 2. 检查是否需要平仓（如果有持仓）
+        current_position = get_current_position()
+        if current_position:
+            print(f"\n{'='*60}")
+            print(f"💼 当前持有{current_position['side']}仓")
+            print(f"   开仓价: ${current_position['entry_price']:,.2f}")
+            print(f"   当前价: ${price_data['price']:,.2f}")
+            print(f"   盈亏: {current_position['unrealized_pnl']:+.2f} USDT")
+            print(f"{'='*60}")
+            
+            # AI检查是否应该平仓
+            close_decision = check_close_position(current_position, price_data)
+            
+            if close_decision:
+                # AI建议平仓
+                reason = close_decision.get('reason', 'AI建议平仓')
+                urgency = close_decision.get('urgency', 'MEDIUM')
+                
+                print(f"\n🚨 AI建议平仓！")
+                print(f"   紧急程度: {urgency}")
+                print(f"   理由: {reason}")
+                
+                # 执行平仓
+                if execute_close_position(current_position, reason):
+                    print(f"✅ 平仓完成，继续分析新信号")
+                    # 平仓成功后，继续分析是否开新仓
+                else:
+                    print(f"❌ 平仓失败，跳过本次交易")
+                    return
+            else:
+                print(f"\n✅ AI判断：保持持仓，继续观察")
+
+        # 3. 使用DeepSeek分析（带重试）
+        signal_data = analyze_with_deepseek_with_retry(price_data)
+
+        if signal_data.get('is_fallback', False):
+            print("⚠️ 使用备用交易信号")
+
+        # 3. 更新Web数据
+        try:
+            balance = exchange.fetch_balance()
+            current_equity = balance['USDT']['total']
+            
+            # 设置初始余额
+            if initial_balance is None:
+                initial_balance = current_equity
+            
+            web_data['account_info'] = {
+                'usdt_balance': balance['USDT']['free'],
+                'total_equity': current_equity
+            }
+            
+            # 记录收益曲线数据
+            current_position = get_current_position()
+            unrealized_pnl = current_position.get('unrealized_pnl', 0) if current_position else 0
+            total_profit = current_equity - initial_balance
+            profit_rate = (total_profit / initial_balance * 100) if initial_balance > 0 else 0
+            
+            profit_point = {
+                'timestamp': datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
+                'equity': current_equity,
+                'profit': total_profit,
+                'profit_rate': profit_rate,
+                'unrealized_pnl': unrealized_pnl
+            }
+            web_data['profit_curve'].append(profit_point)
+            
+            # 只保留最近200个数据点（约50小时）
+            if len(web_data['profit_curve']) > 200:
+                web_data['profit_curve'].pop(0)
+                
+        except Exception as e:
+            print(f"更新余额失败: {e}")
+        
+        web_data['current_price'] = price_data['price']
+        web_data['current_position'] = get_current_position()
+        web_data['last_update'] = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+        
+        # 保存K线数据
+        web_data['kline_data'] = price_data['kline_data']
+        
+        # 保存AI决策
+        ai_decision = {
+            'timestamp': datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
+            'signal': signal_data['signal'],
+            'confidence': signal_data['confidence'],
+            'reason': signal_data['reason'],
+            'stop_loss': signal_data.get('stop_loss', 0),
+            'take_profit': signal_data.get('take_profit', 0),
+            'price': price_data['price']
+        }
+        web_data['ai_decisions'].append(ai_decision)
+        if len(web_data['ai_decisions']) > 50:  # 只保留最近50条
+            web_data['ai_decisions'].pop(0)
+        
+        # 更新性能统计
+        if web_data['current_position']:
+            web_data['performance']['total_profit'] = web_data['current_position'].get('unrealized_pnl', 0)
+
+        # 4. 执行交易
+        execute_trade(signal_data, price_data)
+        
+        print("✅ 本轮交易循环完成")
+        
+    except KeyboardInterrupt:
+        print("\n⚠️ 收到中断信号")
+        raise
+    except Exception as e:
+        print(f"\n❌ 交易循环异常: {e}")
+        import traceback
+        traceback.print_exc()
+        # 不要退出，继续下一轮
+        time.sleep(10)  # 等待10秒后继续
 
 
 def main():
@@ -1315,11 +1678,38 @@ def main():
     print("="*60 + "\n")
 
     # 循环执行（不使用schedule）
+    consecutive_errors = 0
+    max_consecutive_errors = 5
+    
     while True:
-        trading_bot()  # 函数内部会自己等待整点
-
-        # 执行完后等待一段时间再检查（避免频繁循环）
-        time.sleep(60)  # 每分钟检查一次
+        try:
+            trading_bot()  # 函数内部会自己等待整点
+            consecutive_errors = 0  # 成功后重置错误计数
+            
+            # 执行完后等待一段时间再检查（避免频繁循环）
+            time.sleep(60)  # 每分钟检查一次
+            
+        except KeyboardInterrupt:
+            print("\n🛑 用户手动停止程序")
+            break
+        except Exception as e:
+            consecutive_errors += 1
+            print(f"\n❌ 主循环异常 (连续{consecutive_errors}次): {e}")
+            import traceback
+            traceback.print_exc()
+            
+            if consecutive_errors >= max_consecutive_errors:
+                print(f"\n🔴 连续错误达到{max_consecutive_errors}次，程序退出")
+                print("建议检查:")
+                print("  1. 网络连接是否正常")
+                print("  2. API密钥是否有效")
+                print("  3. 交易所API是否可访问")
+                break
+            
+            # 等待后重试
+            wait_time = min(60 * consecutive_errors, 300)  # 最多等待5分钟
+            print(f"⏳ 等待{wait_time}秒后重试...")
+            time.sleep(wait_time)
 
 
 if __name__ == "__main__":

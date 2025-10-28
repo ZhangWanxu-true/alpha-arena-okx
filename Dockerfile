@@ -26,6 +26,6 @@ COPY . .
 # 暴露Web服务端口
 EXPOSE 8080
 
-# 启动Web服务器
-CMD ["python", "web_server.py"]
+# 启动应用（统一入口：Web+机器人+守护）
+CMD ["python", "app.py"]
 

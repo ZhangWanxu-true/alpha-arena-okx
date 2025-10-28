@@ -1,237 +1,36 @@
-# ============================================
-# BTC自动交易机器人 - Git忽略文件
-# ============================================
-
-# 🔐 敏感配置文件（重要！）
+# 环境配置文件
 .env
-.env.local
-.env.*.local
-*.key
-*.pem
+*.env
 
-# 🐍 Python相关
-# 字节码缓存
+# Python
 __pycache__/
 *.py[cod]
 *$py.class
 *.so
-
-# 虚拟环境
-venv/
-env/
-ENV/
-.venv/
-.python-version
-
-# 分发 / 打包
 .Python
-build/
-develop-eggs/
-dist/
-downloads/
-eggs/
-.eggs/
-lib/
-lib64/
-parts/
-sdist/
-var/
-wheels/
-share/python-wheels/
-*.egg-info/
-.installed.cfg
-*.egg
-MANIFEST
+venv/
+ENV/
+env/
 
-# PyInstaller
-*.manifest
-*.spec
+# 日志文件
+*.log
+guardian.log
 
-# 单元测试 / 覆盖率
-htmlcov/
-.tox/
-.nox/
-.coverage
-.coverage.*
-.cache
-nosetests.xml
-coverage.xml
-*.cover
-*.py,cover
-.hypothesis/
-.pytest_cache/
-cover/
-
-# Jupyter Notebook
-.ipynb_checkpoints
-
-# IPython
-profile_default/
-ipython_config.py
-
-# pyenv
-.python-version
-
-# Celery
-celerybeat-schedule
-celerybeat.pid
-
-# SageMath
-*.sage.py
-
-# Spyder
-.spyderproject
-.spyproject
-
-# Rope
-.ropeproject
-
-# mkdocs
-/site
-
-# mypy
-.mypy_cache/
-.dmypy.json
-dmypy.json
-
-# Pyre
-.pyre/
-
-# pytype
-.pytype/
-
-# Cython
-cython_debug/
-
-# 💻 IDE / 编辑器
-# VSCode
+# IDE
 .vscode/
-*.code-workspace
-
-# PyCharm
 .idea/
-*.iml
-*.iws
-
-# Sublime Text
-*.sublime-project
-*.sublime-workspace
-
-# Vim
-[._]*.s[a-v][a-z]
-[._]*.sw[a-p]
-[._]s[a-rt-v][a-z]
-[._]ss[a-gi-z]
-[._]sw[a-p]
 *.swp
 *.swo
-*~
 
-# Emacs
-*~
-\#*\#
-/.emacs.desktop
-/.emacs.desktop.lock
-*.elc
-
-# 🖥️ 操作系统
-# Windows
-Thumbs.db
-Thumbs.db:encryptable
-ehthumbs.db
-ehthumbs_vista.db
-*.stackdump
-[Dd]esktop.ini
-$RECYCLE.BIN/
-*.cab
-*.msi
-*.msix
-*.msm
-*.msp
-*.lnk
-
-# macOS
+# 操作系统
 .DS_Store
-.AppleDouble
-.LSOverride
-._*
-.DocumentRevisions-V100
-.fseventsd
-.Spotlight-V100
-.TemporaryItems
-.Trashes
-.VolumeIcon.icns
-.com.apple.timemachine.donotpresent
-.AppleDB
-.AppleDesktop
-Network Trash Folder
-Temporary Items
-.apdisk
+Thumbs.db
 
-# Linux
-*~
-.directory
-.Trash-*
-.nfs*
-
-# 📊 数据 / 日志文件
-*.log
+# 数据文件
+data/
 *.db
 *.sqlite
-*.sqlite3
-*.dat
-*.csv
-*.json.bak
-logs/
-*.pid
 
-# 🧪 测试文件
-test_*.py
-*_test.py
-test_data/
-temp/
-tmp/
+# 临时文件
 *.tmp
-
-# 📦 依赖管理
-pip-log.txt
-pip-delete-this-directory.txt
-Pipfile.lock
-
-# 🔧 项目特定
-# 备份文件
-*.bak
-*.backup
-*_backup.py
-*_old.py
-
-# 临时测试脚本
-test_*.py
-check_*.py
-debug_*.py
-
-# Node.js (如果有前端构建工具)
-node_modules/
-npm-debug.log*
-yarn-debug.log*
-yarn-error.log*
-package-lock.json
-yarn.lock
-
-# 文档草稿
-DRAFT_*.md
-TODO_*.md
-
-# ============================================
-# 保留的文件说明
-# ============================================
-# 以下文件应该被包含在仓库中：
-# - README.md          (项目说明)
-# - requirements.txt   (依赖列表)
-# - .env_template      (配置模板，不含密钥)
-# - deepseekok2.py    (主程序)
-# - web_server.py     (Web服务器)
-# - templates/        (HTML模板)
-# - static/           (静态资源)
-# ============================================
-
+temp/

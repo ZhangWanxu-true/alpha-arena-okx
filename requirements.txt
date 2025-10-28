@@ -7,3 +7,5 @@ requests
 urllib3
 flask
 flask-cors
+psutil
+pytz

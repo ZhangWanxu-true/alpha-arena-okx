@@ -122,6 +122,28 @@ def test_ai_connection():
     except Exception as e:
         return jsonify({'error': str(e), 'success': False}), 500
 
+@app.route('/api/time')
+def get_time_info():
+    """获取时间信息（北京时间和服务器时间）"""
+    try:
+        from datetime import datetime
+        import pytz
+        
+        # 服务器时间（本地时间）
+        server_time = datetime.now()
+        
+        # 北京时间 (UTC+8)
+        beijing_tz = pytz.timezone('Asia/Shanghai')
+        beijing_time = datetime.now(beijing_tz)
+        
+        return jsonify({
+            'server_time': server_time.strftime('%Y-%m-%d %H:%M:%S'),
+            'beijing_time': beijing_time.strftime('%Y-%m-%d %H:%M:%S'),
+            'timestamp': int(server_time.timestamp())
+        })
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
 def initialize_data():
     """启动时立即初始化一次数据"""
     try:

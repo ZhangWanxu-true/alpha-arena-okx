@@ -84,12 +84,12 @@ exchange = ccxt.okx({
 # - 示例：配置100 USDT → 自动调整为115 USDT买入0.01 BTC
 # ============================================
 TRADE_CONFIG = {
-    'symbol': 'BTC/USDT:USDT',  # OKX的合约符号格式
+    'symbol': 'ETH/USDT:USDT',  # OKX的合约符号格式
     'margin_usdt': 120,  # 🔧 修改这里：每次交易投入的保证金(USDT)
     'leverage': 10,  # 🔧 修改这里：杠杆倍数 (建议10-20倍)
     'position_usdt': None,  # 自动计算：实际开仓金额 = margin_usdt * leverage
     'timeframe': '15m',  # 使用15分钟K线
-    'test_mode': False,  # 🔧 测试模式：True=模拟不下单，False=真实交易
+    'test_mode': True,  # 🔧 测试模式：True=模拟不下单，False=真实交易
     'data_points': 96,  # 24小时数据（96根15分钟K线）
     'analysis_periods': {
         'short_term': 20,  # 短期均线
@@ -140,7 +140,7 @@ def setup_exchange():
         # 获取合约市场信息
         markets = exchange.load_markets()
         market_info = markets.get(TRADE_CONFIG['symbol'])
-        
+
         if market_info:
             print(f"\n{'='*60}")
             print(f"📋 合约市场信息:")
@@ -151,7 +151,7 @@ def setup_exchange():
             print(f"   价格精度: {market_info.get('precision', {}).get('price', 'N/A')}")
             print(f"   数量精度: {market_info.get('precision', {}).get('amount', 'N/A')}")
             print(f"{'='*60}\n")
-        
+
         # OKX设置杠杆
         exchange.set_leverage(
             TRADE_CONFIG['leverage'],
@@ -496,13 +496,13 @@ def safe_json_parse(json_str):
                 end = json_str.find('```', start)
                 if end != -1:
                     json_str = json_str[start:end].strip()
-            
+
             # 尝试直接解析
             try:
                 return json.loads(json_str)
             except:
                 pass
-            
+
             # 修复常见的JSON格式问题
             json_str = json_str.replace("'", '"')
             json_str = re.sub(r'(\w+):', r'"\1":', json_str)
@@ -528,7 +528,7 @@ def test_ai_connection():
             max_tokens=10,
             timeout=10.0
         )
-        
+
         if response and response.choices:
             web_data['ai_model_info']['status'] = 'connected'
             web_data['ai_model_info']['last_check'] = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
@@ -541,7 +541,7 @@ def test_ai_connection():
             web_data['ai_model_info']['error_message'] = '响应为空'
             print(f"❌ {AI_PROVIDER.upper()} 连接失败: 响应为空")
             return False
-            
+
     except Exception as e:
         web_data['ai_model_info']['status'] = 'error'
         web_data['ai_model_info']['last_check'] = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
@@ -625,7 +625,7 @@ def analyze_with_deepseek(price_data):
 
     【交易指导原则 - 必须遵守】
     1. **技术分析主导** (权重60%)：趋势、支撑阻力、K线形态是主要依据
-    2. **市场情绪辅助** (权重30%)：情绪数据用于验证技术信号，不能单独作为交易理由  
+    2. **市场情绪辅助** (权重30%)：情绪数据用于验证技术信号，不能单独作为交易理由
     - 情绪与技术同向 → 增强信号信心
     - 情绪与技术背离 → 以技术分析为主，情绪仅作参考
     - 情绪数据延迟 → 降低权重，以实时技术指标为准
@@ -634,7 +634,7 @@ def analyze_with_deepseek(price_data):
     5. 因为做的是btc，做多权重可以大一点点
     6. **信号明确性**:
     - 强势上涨趋势 → BUY信号
-    - 强势下跌趋势 → SELL信号  
+    - 强势下跌趋势 → SELL信号
     - 仅在窄幅震荡、无明确方向时 → HOLD信号
     7. **技术指标权重**:
     - 趋势(均线排列) > RSI > MACD > 布林带
@@ -642,7 +642,7 @@ def analyze_with_deepseek(price_data):
 
     【当前技术状况分析】
     - 整体趋势: {price_data['trend_analysis'].get('overall', 'N/A')}
-    - 短期趋势: {price_data['trend_analysis'].get('short_term', 'N/A')} 
+    - 短期趋势: {price_data['trend_analysis'].get('short_term', 'N/A')}
     - RSI状态: {price_data['technical_data'].get('rsi', 0):.1f} ({'超买' if price_data['technical_data'].get('rsi', 0) > 70 else '超卖' if price_data['technical_data'].get('rsi', 0) < 30 else '中性'})
     - MACD方向: {price_data['trend_analysis'].get('macd', 'N/A')}
 
@@ -654,14 +654,14 @@ def analyze_with_deepseek(price_data):
         "signal": "BUY|SELL|HOLD",
         "reason": "简要分析理由(包含趋势判断和技术依据)",
         "stop_loss": 具体价格,
-        "take_profit": 具体价格, 
+        "take_profit": 具体价格,
         "confidence": "HIGH|MEDIUM|LOW"
     }}
     """
 
     try:
         print(f"⏳ 正在调用{AI_PROVIDER.upper()} API ({AI_MODEL})...")
-        
+
         # 直接调用API（重试由外层 analyze_with_deepseek_with_retry 负责）
         response = ai_client.chat.completions.create(
             model=AI_MODEL,
@@ -675,7 +675,7 @@ def analyze_with_deepseek(price_data):
             timeout=30.0  # 30秒超时
         )
         print("✓ API调用成功")
-        
+
         # 更新AI连接状态
         web_data['ai_model_info']['status'] = 'connected'
         web_data['ai_model_info']['last_check'] = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
@@ -687,13 +687,13 @@ def analyze_with_deepseek(price_data):
             web_data['ai_model_info']['status'] = 'error'
             web_data['ai_model_info']['error_message'] = '响应为空'
             return create_fallback_signal(price_data)
-        
+
         # 安全解析JSON
         result = response.choices[0].message.content
         if not result:
             print(f"❌ {AI_PROVIDER.upper()}返回空内容")
             return create_fallback_signal(price_data)
-            
+
         print(f"\n{'='*60}")
         print(f"{AI_PROVIDER.upper()}原始回复:")
         print(result)
@@ -756,10 +756,10 @@ def set_stop_orders(position_info, stop_loss_price, take_profit_price):
     try:
         if not position_info:
             return False
-        
+
         side = position_info['side']
         size = position_info['size']
-        
+
         print(f"\n{'='*50}")
         print(f"📊 设置止盈止损订单")
         print(f"   持仓方向: {side}")
@@ -767,13 +767,13 @@ def set_stop_orders(position_info, stop_loss_price, take_profit_price):
         print(f"   止损价格: ${stop_loss_price:,.2f}")
         print(f"   止盈价格: ${take_profit_price:,.2f}")
         print(f"{'='*50}\n")
-        
+
         # OKX止盈止损参数
         order_params = {
             'tdMode': 'cross',
             'tag': '60bb4a8d3416BCDE'
         }
-        
+
         try:
             # 止损订单 (Stop Loss)
             if side == 'long':
@@ -791,7 +791,7 @@ def set_stop_orders(position_info, stop_loss_price, take_profit_price):
                     }
                 )
                 print(f"✅ 多仓止损订单已设置: ${stop_loss_price:,.2f}")
-                
+
                 # 止盈订单 (Take Profit)
                 tp_order = exchange.create_order(
                     symbol=TRADE_CONFIG['symbol'],
@@ -805,7 +805,7 @@ def set_stop_orders(position_info, stop_loss_price, take_profit_price):
                     }
                 )
                 print(f"✅ 多仓止盈订单已设置: ${take_profit_price:,.2f}")
-                
+
             else:  # short
                 # 空仓止损：价格涨破止损价时买入
                 sl_order = exchange.create_order(
@@ -821,7 +821,7 @@ def set_stop_orders(position_info, stop_loss_price, take_profit_price):
                     }
                 )
                 print(f"✅ 空仓止损订单已设置: ${stop_loss_price:,.2f}")
-                
+
                 # 止盈订单 (Take Profit)
                 tp_order = exchange.create_order(
                     symbol=TRADE_CONFIG['symbol'],
@@ -835,15 +835,15 @@ def set_stop_orders(position_info, stop_loss_price, take_profit_price):
                     }
                 )
                 print(f"✅ 空仓止盈订单已设置: ${take_profit_price:,.2f}")
-            
+
             print(f"✅ 止盈止损订单设置成功\n")
             return True
-            
+
         except Exception as e:
             print(f"❌ 设置止盈止损订单失败: {e}")
             # 即使失败也不影响主流程
             return False
-            
+
     except Exception as e:
         print(f"❌ 止盈止损设置异常: {e}")
         return False
@@ -853,14 +853,14 @@ def check_close_position(current_position, price_data):
     """检查是否需要平仓（AI智能决策）"""
     if not current_position:
         return None
-    
+
     try:
         side = current_position['side']
         entry_price = current_position['entry_price']
         current_price = price_data['price']
         unrealized_pnl = current_position['unrealized_pnl']
         size = current_position['size']
-        
+
         # 🛡️ 防止刚开仓就平仓：检查持仓时间
         # 根据时间周期设置最小持仓时间
         timeframe = TRADE_CONFIG.get('timeframe', '1h')
@@ -872,7 +872,7 @@ def check_close_position(current_position, price_data):
             min_hold_minutes = 30  # 15分钟周期，至少持仓30分钟
         else:
             min_hold_minutes = 60  # 默认1小时
-        
+
         # 检查是否有最近的开仓记录
         if web_data.get('trade_history'):
             last_trade = web_data['trade_history'][-1]
@@ -882,27 +882,27 @@ def check_close_position(current_position, price_data):
                     trade_time = datetime.strptime(last_trade['timestamp'], '%Y-%m-%d %H:%M:%S')
                     now = datetime.now()
                     hold_minutes = (now - trade_time).total_seconds() / 60
-                    
+
                     if hold_minutes < min_hold_minutes:
                         print(f"⏰ 持仓时间不足 ({hold_minutes:.1f}分钟 < {min_hold_minutes}分钟)")
                         print(f"   跳过AI平仓检查，避免频繁开平仓")
                         return None
                 except:
                     pass  # 如果时间解析失败，继续执行
-        
+
         # 计算盈亏比例
         if side == 'long':
             pnl_percent = ((current_price - entry_price) / entry_price) * 100
         else:
             pnl_percent = ((entry_price - current_price) / entry_price) * 100
-        
+
         # 技术指标
         tech = price_data['technical_data']
         rsi = tech.get('rsi', 50)
         macd = tech.get('macd', 0)
         macd_signal = tech.get('macd_signal', 0)
         bb_position = tech.get('bb_position', 0.5)
-        
+
         print(f"\n{'='*60}")
         print(f"📊 平仓检查")
         print(f"   持仓方向: {side}")
@@ -914,7 +914,7 @@ def check_close_position(current_position, price_data):
         print(f"   MACD: {macd:.4f}")
         print(f"   布林带位置: {bb_position:.2%}")
         print(f"{'='*60}\n")
-        
+
         # 构建平仓决策提示词
         prompt = f"""
 你是专业的风险管理顾问。当前持有{side}仓位，需要判断是否应该平仓。
@@ -966,9 +966,9 @@ def check_close_position(current_position, price_data):
     "expected_outcome": "止盈|止损|趋势反转|保持观望"
 }}
 """
-        
+
         print(f"⏳ 正在调用{AI_PROVIDER.upper()} 分析是否平仓...")
-        
+
         response = ai_client.chat.completions.create(
             model=AI_MODEL,
             messages=[
@@ -978,20 +978,20 @@ def check_close_position(current_position, price_data):
             temperature=0.1,
             timeout=30.0
         )
-        
+
         result = response.choices[0].message.content
         print(f"\n{AI_PROVIDER.upper()}平仓分析:")
         print(result)
         print()
-        
+
         # 解析JSON
         start_idx = result.find('{')
         end_idx = result.rfind('}') + 1
-        
+
         if start_idx != -1 and end_idx != 0:
             json_str = result[start_idx:end_idx]
             close_decision = safe_json_parse(json_str)
-            
+
             if close_decision and close_decision.get('should_close'):
                 print(f"✅ AI建议平仓")
                 print(f"   理由: {close_decision.get('reason')}")
@@ -1004,7 +1004,7 @@ def check_close_position(current_position, price_data):
         else:
             print("⚠️ 无法解析AI回复")
             return None
-            
+
     except Exception as e:
         print(f"❌ 平仓检查失败: {e}")
         import traceback
@@ -1018,42 +1018,42 @@ def execute_close_position(current_position, reason="手动平仓"):
         if not current_position:
             print("⚠️ 无持仓，无需平仓")
             return False
-        
+
         side = current_position['side']
         size = current_position['size']
-        
+
         print(f"\n{'='*50}")
         print(f"🔄 执行平仓")
         print(f"   原因: {reason}")
         print(f"   持仓方向: {side}")
         print(f"   持仓数量: {size}")
         print(f"{'='*50}\n")
-        
+
         # 平仓参数
         close_params = {
             'tdMode': 'cross',
             'reduceOnly': True,
             'tag': '60bb4a8d3416BCDE'
         }
-        
+
         # 执行平仓（反向开仓）
         close_side = 'sell' if side == 'long' else 'buy'
-        
+
         order_response = exchange.create_market_order(
             TRADE_CONFIG['symbol'],
             close_side,
             size,
             params=close_params
         )
-        
+
         print(f"✅ 平仓订单已提交")
         print(f"   订单ID: {order_response.get('id', 'N/A')}")
         print(f"   成交数量: {order_response.get('filled', 'N/A')} BTC")
         print(f"   成交价格: ${order_response.get('price', order_response.get('average', 'N/A'))}")
-        
+
         # 等待订单完成
         time.sleep(2)
-        
+
         # 验证平仓
         new_position = get_current_position()
         if not new_position:
@@ -1062,7 +1062,7 @@ def execute_close_position(current_position, reason="手动平仓"):
         else:
             print(f"⚠️ 平仓后仍有持仓: {new_position}\n")
             return False
-            
+
     except Exception as e:
         print(f"❌ 平仓失败: {e}")
         import traceback
@@ -1109,30 +1109,30 @@ def execute_trade(signal_data, price_data):
         # 获取账户余额
         balance = exchange.fetch_balance()
         usdt_balance = balance['USDT']['free']
-        
+
         # 🔄 根据USDT金额计算BTC数量
         margin_usdt = TRADE_CONFIG['margin_usdt']  # 保证金
         position_usdt = TRADE_CONFIG['position_usdt']  # 实际开仓金额（保证金 * 杠杆）
         btc_amount = position_usdt / price_data['price']  # 买入的BTC数量
-        
+
         # ✨ 自动调整到最小订单量（OKX要求≥0.01 BTC）
         MIN_ORDER_SIZE = 0.01  # OKX永续合约最小订单量
         original_amount = btc_amount
-        
+
         if btc_amount < MIN_ORDER_SIZE:
             btc_amount = MIN_ORDER_SIZE
             actual_position_usdt = btc_amount * price_data['price']
             actual_margin_usdt = actual_position_usdt / TRADE_CONFIG['leverage']
-            
+
             print(f"\n⚠️ 订单量自动调整:")
             print(f"   原计划买入: {original_amount:.6f} BTC (价值 {position_usdt:.2f} USDT)")
             print(f"   调整为最小量: {btc_amount:.2f} BTC (价值 {actual_position_usdt:.2f} USDT)")
             print(f"   所需保证金: {actual_margin_usdt:.2f} USDT (原计划 {margin_usdt:.2f} USDT)")
-            
+
             # 更新实际使用的金额
             margin_usdt = actual_margin_usdt
             position_usdt = actual_position_usdt
-        
+
         # 🔥 关键修复：OKX合约需要转换为张数
         # OKX的BTC永续合约: 1张 = 0.01 BTC (contractSize = 0.01)
         # 我们需要传入的是"张数"而不是BTC数量
@@ -1140,23 +1140,23 @@ def execute_trade(signal_data, price_data):
             markets = exchange.load_markets()
             market = markets.get(TRADE_CONFIG['symbol'])
             contract_size = market.get('contractSize', 1) if market else 1
-            
+
             # 转换：BTC数量 → 张数
             contracts_amount = btc_amount / contract_size if contract_size > 0 else btc_amount
-            
+
             print(f"\n🔄 合约数量转换:")
             print(f"   目标BTC数量: {btc_amount:.8f} BTC")
             print(f"   合约大小(contractSize): {contract_size}")
             print(f"   下单张数: {contracts_amount:.8f} 张")
             print(f"   验证: {contracts_amount:.8f} × {contract_size} = {contracts_amount * contract_size:.8f} BTC")
-            
+
             # 使用转换后的张数
             btc_amount = contracts_amount
-            
+
         except Exception as e:
             print(f"⚠️ 获取合约信息失败，使用原始数量: {e}")
             # 如果获取失败，保持原值
-        
+
         # 检查保证金是否充足（使用调整后的金额）
         if margin_usdt > usdt_balance * 0.8:  # 使用不超过80%的余额
             print(f"\n❌ 保证金不足，跳过交易。")
@@ -1173,14 +1173,14 @@ def execute_trade(signal_data, price_data):
         print(f"   杠杆倍数: {TRADE_CONFIG['leverage']}x")
         print(f"   开仓金额: {position_usdt:.2f} USDT")
         print(f"   下单张数: {btc_amount:.6f} 张")
-        
+
         # 显示实际会买入的BTC数量
         try:
             actual_btc = btc_amount * contract_size
             print(f"   实际买入: {actual_btc:.8f} BTC ({btc_amount:.6f} 张 × {contract_size} BTC/张)")
         except:
             print(f"   实际买入: ~{btc_amount:.6f} BTC")
-        
+
         print(f"   可用余额: {usdt_balance:.2f} USDT")
         print(f"   剩余余额: {usdt_balance - margin_usdt:.2f} USDT")
         print(f"{'='*50}\n")
@@ -1190,7 +1190,7 @@ def execute_trade(signal_data, price_data):
             'tdMode': 'cross',  # 全仓模式
             'tag': '60bb4a8d3416BCDE'
         }
-        
+
         if signal_data['signal'] == 'BUY':
             # 开多仓（因为已经保证了无持仓）
             print("📈 开多仓...")
@@ -1200,7 +1200,7 @@ def execute_trade(signal_data, price_data):
             except:
                 print(f"   准备买入: {btc_amount:.6f} 张 (价值 {position_usdt:.2f} USDT)")
             print(f"   📊 订单参数: {order_params}")
-            
+
             # 下单并获取订单响应
             order_response = exchange.create_market_order(
                 TRADE_CONFIG['symbol'],
@@ -1208,7 +1208,7 @@ def execute_trade(signal_data, price_data):
                 btc_amount,
                 params=order_params
             )
-            
+
             # 打印订单响应详情
             print(f"\n   📄 订单响应:")
             print(f"   订单ID: {order_response.get('id', 'N/A')}")
@@ -1228,14 +1228,14 @@ def execute_trade(signal_data, price_data):
             except:
                 print(f"   准备卖出: {btc_amount:.6f} 张 (价值 {position_usdt:.2f} USDT)")
             print(f"   📊 订单参数: {order_params}")
-            
+
             order_response = exchange.create_market_order(
                 TRADE_CONFIG['symbol'],
                 'sell',
                 btc_amount,
                 params=order_params
             )
-            
+
             print(f"\n   📄 订单响应:")
             print(f"   订单ID: {order_response.get('id', 'N/A')}")
             print(f"   状态: {order_response.get('status', 'N/A')}")
@@ -1244,7 +1244,7 @@ def execute_trade(signal_data, price_data):
             print(f"   成交价格: ${order_response.get('price', order_response.get('average', 'N/A'))}")
             if order_response.get('cost'):
                 print(f"   成交金额: {order_response.get('cost', 'N/A')} USDT")
-        
+
         else:
             # 理论上不会到这里，因为前面已经过滤了HOLD
             print(f"⚠️ 未知信号: {signal_data['signal']}")
@@ -1252,7 +1252,7 @@ def execute_trade(signal_data, price_data):
 
         print("✅ 订单提交成功")
         time.sleep(2)
-        
+
         # 获取最新持仓并显示详细信息
         position = get_current_position()
         print(f"\n{'='*50}")
@@ -1263,12 +1263,12 @@ def execute_trade(signal_data, price_data):
             print(f"   开仓价: ${position['entry_price']:,.2f}")
             print(f"   未实现盈亏: {position['unrealized_pnl']:+.2f} USDT")
             print(f"   杠杆: {position['leverage']}x")
-            
+
             # 🎯 设置止盈止损订单
             try:
                 stop_loss = signal_data.get('stop_loss', 0)
                 take_profit = signal_data.get('take_profit', 0)
-                
+
                 if stop_loss > 0 and take_profit > 0:
                     print(f"\n⚙️ 正在设置止盈止损...")
                     set_stop_orders(position, stop_loss, take_profit)
@@ -1279,7 +1279,7 @@ def execute_trade(signal_data, price_data):
         else:
             print(f"   无持仓")
         print(f"{'='*50}\n")
-        
+
         # 记录交易历史
         trade_record = {
             'timestamp': datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
@@ -1298,14 +1298,14 @@ def execute_trade(signal_data, price_data):
     except Exception as e:
         error_msg = str(e).lower()
         print(f"\n❌ 订单执行失败: {e}")
-        
+
         # 检查是否是最小数量限制错误
         if 'min' in error_msg or 'amount' in error_msg or 'size' in error_msg:
             print(f"\n💡 可能原因：订单数量低于交易所最小限制")
             print(f"   解决方法1：增加保证金至 115-120 USDT")
             print(f"   解决方法2：联系交易所了解实际最小限制")
             print(f"   当前配置：{TRADE_CONFIG['margin_usdt']} USDT × {TRADE_CONFIG['leverage']}x = {TRADE_CONFIG['position_usdt']} USDT")
-        
+
         import traceback
         traceback.print_exc()
 
@@ -1313,16 +1313,16 @@ def execute_trade(signal_data, price_data):
 def analyze_with_deepseek_with_retry(price_data, max_attempts=2):
     """带重试的DeepSeek分析（最多尝试2次，仅在API调用失败时重试）"""
     last_error = None
-    
+
     for attempt in range(max_attempts):
         try:
             if attempt > 0:
                 print(f"\n{'='*60}")
                 print(f"🔄 重试 AI分析 - 第 {attempt + 1}/{max_attempts} 次尝试")
                 print(f"{'='*60}")
-            
+
             signal_data = analyze_with_deepseek(price_data)
-            
+
             # ✅ 关键修改：只要函数正常返回（无异常），就使用这个结果
             # 即使是fallback信号，也说明AI API已经被调用过了（可能返回格式不对）
             # 不应该因为格式问题而重复调用AI
@@ -1336,7 +1336,7 @@ def analyze_with_deepseek_with_retry(price_data, max_attempts=2):
         except Exception as e:
             last_error = e
             print(f"❌ 第 {attempt + 1} 次尝试异常: {e}")
-            
+
             # 只在API调用失败时重试
             if attempt < max_attempts - 1:
                 wait_time = 2 ** attempt  # 指数退避: 1s, 2s
@@ -1389,31 +1389,31 @@ def test_order_amount():
         print(f"\n{'='*60}")
         print(f"🧪 订单数量测试模式 (按USDT金额计算)")
         print(f"{'='*60}")
-        
+
         # 获取市场信息
         markets = exchange.load_markets()
         market = markets.get(TRADE_CONFIG['symbol'])
-        
+
         # 获取当前价格
         ticker = exchange.fetch_ticker(TRADE_CONFIG['symbol'])
         current_price = ticker['last']
-        
+
         # 根据USDT金额计算BTC数量
         margin_usdt = TRADE_CONFIG['margin_usdt']
         position_usdt = TRADE_CONFIG['position_usdt']
         btc_amount = position_usdt / current_price
-        
+
         # 检查并模拟自动调整
         MIN_ORDER_SIZE = 0.01
         original_amount = btc_amount
         will_adjust = False
-        
+
         if btc_amount < MIN_ORDER_SIZE:
             will_adjust = True
             btc_amount = MIN_ORDER_SIZE
             actual_position_usdt = btc_amount * current_price
             actual_margin_usdt = actual_position_usdt / TRADE_CONFIG['leverage']
-        
+
         print(f"📊 测试参数:")
         print(f"   交易对: {TRADE_CONFIG['symbol']}")
         print(f"   当前价格: ${current_price:,.2f}")
@@ -1421,13 +1421,13 @@ def test_order_amount():
         print(f"   杠杆倍数: {TRADE_CONFIG['leverage']}x")
         print(f"   配置开仓金额: {position_usdt:.2f} USDT")
         print(f"   计算买入数量: {original_amount:.6f} BTC")
-        
+
         if market:
             contract_size = market.get('contractSize', 1)
             min_amount = market.get('limits', {}).get('amount', {}).get('min', 0)
             print(f"\n   合约大小: {contract_size}")
             print(f"   最小数量: {min_amount}")
-            
+
             # 显示自动调整信息
             if will_adjust:
                 print(f"\n   ✨ 自动调整（实际下单时）:")
@@ -1436,13 +1436,13 @@ def test_order_amount():
                 print(f"   └─ 实际所需保证金: {actual_margin_usdt:.2f} USDT")
             else:
                 print(f"\n   ✅ 订单量满足最小要求，无需调整")
-        
+
         print(f"{'='*60}\n")
-        
+
         # 获取账户余额
         balance = exchange.fetch_balance()
         usdt_balance = balance['USDT']['free']
-        
+
         if margin_usdt > usdt_balance:
             print(f"⚠️ 警告: 保证金不足！")
             print(f"   需要: {margin_usdt:.2f} USDT")
@@ -1453,7 +1453,7 @@ def test_order_amount():
             print(f"   需要: {margin_usdt:.2f} USDT")
             print(f"   可用: {usdt_balance:.2f} USDT")
             print(f"   剩余: {usdt_balance - margin_usdt:.2f} USDT")
-            
+
     except Exception as e:
         print(f"❌ 测试失败: {e}")
         import traceback
@@ -1463,13 +1463,13 @@ def test_order_amount():
 def trading_bot():
     """主交易机器人函数"""
     global web_data, initial_balance
-    
+
     try:
         # 等待到整点再执行
         wait_seconds = wait_for_next_period()
         if wait_seconds > 0:
             time.sleep(wait_seconds)
-        
+
         print("\n" + "=" * 60)
         print(f"执行时间: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
         print("=" * 60)
@@ -1493,19 +1493,19 @@ def trading_bot():
             print(f"   当前价: ${price_data['price']:,.2f}")
             print(f"   盈亏: {current_position['unrealized_pnl']:+.2f} USDT")
             print(f"{'='*60}")
-            
+
             # AI检查是否应该平仓
             close_decision = check_close_position(current_position, price_data)
-            
+
             if close_decision:
                 # AI建议平仓
                 reason = close_decision.get('reason', 'AI建议平仓')
                 urgency = close_decision.get('urgency', 'MEDIUM')
-                
+
                 print(f"\n🚨 AI建议平仓！")
                 print(f"   紧急程度: {urgency}")
                 print(f"   理由: {reason}")
-                
+
                 # 执行平仓
                 if execute_close_position(current_position, reason):
                     print(f"✅ 平仓完成，本次周期结束")
@@ -1517,7 +1517,7 @@ def trading_bot():
             else:
                 print(f"\n✅ AI判断：保持持仓，本周期结束")
                 return  # 关键：有持仓且保持时，本周期结束，不再分析新信号
-        
+
         # 3. 只有在无持仓时才分析新信号
         print(f"\n💡 当前无持仓，分析是否开仓...")
         signal_data = analyze_with_deepseek_with_retry(price_data)
@@ -1529,22 +1529,22 @@ def trading_bot():
         try:
             balance = exchange.fetch_balance()
             current_equity = balance['USDT']['total']
-            
+
             # 设置初始余额
             if initial_balance is None:
                 initial_balance = current_equity
-            
+
             web_data['account_info'] = {
                 'usdt_balance': balance['USDT']['free'],
                 'total_equity': current_equity
             }
-            
+
             # 记录收益曲线数据
             current_position = get_current_position()
             unrealized_pnl = current_position.get('unrealized_pnl', 0) if current_position else 0
             total_profit = current_equity - initial_balance
             profit_rate = (total_profit / initial_balance * 100) if initial_balance > 0 else 0
-            
+
             profit_point = {
                 'timestamp': datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
                 'equity': current_equity,
@@ -1553,21 +1553,21 @@ def trading_bot():
                 'unrealized_pnl': unrealized_pnl
             }
             web_data['profit_curve'].append(profit_point)
-            
+
             # 只保留最近200个数据点（约50小时）
             if len(web_data['profit_curve']) > 200:
                 web_data['profit_curve'].pop(0)
-                
+
         except Exception as e:
             print(f"更新余额失败: {e}")
-        
+
         web_data['current_price'] = price_data['price']
         web_data['current_position'] = get_current_position()
         web_data['last_update'] = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-        
+
         # 保存K线数据
         web_data['kline_data'] = price_data['kline_data']
-        
+
         # 保存AI决策
         ai_decision = {
             'timestamp': datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
@@ -1581,16 +1581,16 @@ def trading_bot():
         web_data['ai_decisions'].append(ai_decision)
         if len(web_data['ai_decisions']) > 50:  # 只保留最近50条
             web_data['ai_decisions'].pop(0)
-        
+
         # 更新性能统计
         if web_data['current_position']:
             web_data['performance']['total_profit'] = web_data['current_position'].get('unrealized_pnl', 0)
 
         # 4. 执行交易
         execute_trade(signal_data, price_data)
-        
+
         print("✅ 本轮交易循环完成")
-        
+
     except KeyboardInterrupt:
         print("\n⚠️ 收到中断信号")
         raise
@@ -1630,7 +1630,7 @@ def main():
     print("🔍 运行订单数量测试...")
     print("="*60)
     test_order_amount()
-    
+
     # 询问是否继续
     if not TRADE_CONFIG['test_mode']:
         print("\n⚠️  请确认上述信息正确后继续")
@@ -1647,15 +1647,15 @@ def main():
     # 循环执行（不使用schedule）
     consecutive_errors = 0
     max_consecutive_errors = 5
-    
+
     while True:
         try:
             trading_bot()  # 函数内部会自己等待整点
             consecutive_errors = 0  # 成功后重置错误计数
-            
+
             # 执行完后等待一段时间再检查（避免频繁循环）
             time.sleep(60)  # 每分钟检查一次
-            
+
         except KeyboardInterrupt:
             print("\n🛑 用户手动停止程序")
             break
@@ -1664,7 +1664,7 @@ def main():
             print(f"\n❌ 主循环异常 (连续{consecutive_errors}次): {e}")
             import traceback
             traceback.print_exc()
-            
+
             if consecutive_errors >= max_consecutive_errors:
                 print(f"\n🔴 连续错误达到{max_consecutive_errors}次，程序退出")
                 print("建议检查:")
@@ -1672,7 +1672,7 @@ def main():
                 print("  2. API密钥是否有效")
                 print("  3. 交易所API是否可访问")
                 break
-            
+
             # 等待后重试
             wait_time = min(60 * consecutive_errors, 300)  # 最多等待5分钟
             print(f"⏳ 等待{wait_time}秒后重试...")

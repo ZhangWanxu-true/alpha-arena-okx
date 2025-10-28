@@ -1023,18 +1023,30 @@ def execute_close_position(current_position, reason="手动平仓"):
             print("⚠️ 无持仓，无需平仓")
             return False
 
-        side = current_position['side']
-        size = current_position['size']
-
+        # ✅ 平仓前重新验证持仓状态
         print(f"\n{'='*50}")
         print(f"🔄 执行平仓")
         print(f"   原因: {reason}")
-        print(f"   持仓方向: {side}")
-        print(f"   持仓数量: {size}")
+        print(f"   原始持仓方向: {current_position['side']}")
+        print(f"   原始持仓数量: {current_position['size']}")
         print(f"{'='*50}\n")
 
+        # 重新获取最新持仓状态
+        latest_position = get_current_position()
+        if not latest_position:
+            print("✅ 持仓已不存在，无需平仓")
+            return True
+
+        side = latest_position['side']
+        size = latest_position['size']
+
+        print(f"📊 最新持仓状态:")
+        print(f"   方向: {side}")
+        print(f"   数量: {size}")
+        print(f"   开仓价: ${latest_position['entry_price']:,.2f}")
+        print(f"   盈亏: {latest_position['unrealized_pnl']:+.2f} USDT")
+
         # 平仓参数
-        # ✅ 添加 posSide 参数：根据持仓方向平仓
         posSide = 'long' if side == 'long' else 'short'
         close_params = {
             'tdMode': 'cross',
@@ -1045,6 +1057,13 @@ def execute_close_position(current_position, reason="手动平仓"):
 
         # 执行平仓（反向开仓）
         close_side = 'sell' if side == 'long' else 'buy'
+
+        print(f"📋 平仓参数:")
+        print(f"   合约: {TRADE_CONFIG['symbol']}")
+        print(f"   方向: {close_side}")
+        print(f"   数量: {size}")
+        print(f"   posSide: {posSide}")
+        print(f"   reduceOnly: True")
 
         order_response = exchange.create_market_order(
             TRADE_CONFIG['symbol'],

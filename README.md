@@ -141,6 +141,9 @@ python -m venv venv
 
 # 3. 安装依赖
 pip install -r requirements.txt
+
+# 4. 运行命令
+python app.py
 ```
 
 ---
@@ -156,6 +159,10 @@ source venv/bin/activate
 
 # 3. 安装依赖
 pip install -r requirements.txt
+
+# 4. 运行命令
+python3 app.py
+
 ```
 
 ### 3. 配置文件

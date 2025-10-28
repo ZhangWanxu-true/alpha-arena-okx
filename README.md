@@ -1,4 +1,4 @@
-# BTC自动交易机器人 🤖
+# BTC自动交易机器人 🤖0.1.1
 # ⚠️⚠️版本正在持续测试中，请谨慎使用，有问题请立马终止，等待版本更新⚠️⚠️
 基于DeepSeek or Qwen3-MAX AI + OKX交易所的智能加密货币交易机器人，结合技术指标分析和市场情绪数据，实现全自动化交易。
 <img width="1892" height="844" alt="{8AA6FF7B-F3CA-4C76-A252-9CC7E1C11B7E}" src="https://github.com/user-attachments/assets/b9e0fcf8-0410-498c-9372-7a1ac2efb3f2" />

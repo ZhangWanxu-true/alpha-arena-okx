@@ -20,7 +20,6 @@ services:
       - 8.8.4.4
     extra_hosts:
       - "host.docker.internal:host-gateway"
-      - "www.okx.com:gateway.docker.internal"
     # 健康检查（使用Python而不是curl）
     healthcheck:
       test: [ "CMD", "python", "-c", "import requests; requests.get('http://localhost:8080/api/dashboard', timeout=5)" ]

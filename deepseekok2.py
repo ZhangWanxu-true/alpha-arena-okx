@@ -1193,20 +1193,26 @@ def execute_trade(signal_data, price_data):
 
         if signal_data['signal'] == 'BUY':
             # 开多仓（因为已经保证了无持仓）
+            # ✅ 添加 posSide: 'long' 指定开多仓
+            order_params_with_posside = {
+                **order_params,
+                'posSide': 'long'  # 开多仓必须指定
+            }
+
             print("📈 开多仓...")
             try:
                 display_btc = btc_amount * contract_size
                 print(f"   准备买入: {btc_amount:.6f} 张 = {display_btc:.8f} BTC (价值 {position_usdt:.2f} USDT)")
             except:
                 print(f"   准备买入: {btc_amount:.6f} 张 (价值 {position_usdt:.2f} USDT)")
-            print(f"   📊 订单参数: {order_params}")
+            print(f"   📊 订单参数: {order_params_with_posside}")
 
             # 下单并获取订单响应
             order_response = exchange.create_market_order(
                 TRADE_CONFIG['symbol'],
                 'buy',
                 btc_amount,
-                params=order_params
+                params=order_params_with_posside
             )
 
             # 打印订单响应详情
@@ -1221,19 +1227,25 @@ def execute_trade(signal_data, price_data):
 
         elif signal_data['signal'] == 'SELL':
             # 开空仓（因为已经保证了无持仓）
+            # ✅ 添加 posSide: 'short' 指定开空仓
+            order_params_with_posside = {
+                **order_params,
+                'posSide': 'short'  # 开空仓必须指定
+            }
+
             print("📉 开空仓...")
             try:
                 display_btc = btc_amount * contract_size
                 print(f"   准备卖出: {btc_amount:.6f} 张 = {display_btc:.8f} BTC (价值 {position_usdt:.2f} USDT)")
             except:
                 print(f"   准备卖出: {btc_amount:.6f} 张 (价值 {position_usdt:.2f} USDT)")
-            print(f"   📊 订单参数: {order_params}")
+            print(f"   📊 订单参数: {order_params_with_posside}")
 
             order_response = exchange.create_market_order(
                 TRADE_CONFIG['symbol'],
                 'sell',
                 btc_amount,
-                params=order_params
+                params=order_params_with_posside
             )
 
             print(f"\n   📄 订单响应:")

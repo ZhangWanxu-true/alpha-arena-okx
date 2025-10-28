@@ -90,6 +90,32 @@ order_response = exchange.create_market_order(
 ✅ 容器已重启
 ✅ 新代码已生效
 
+## 已修复的额外问题
+
+### 平仓操作也需要 posSide（新增）
+**问题**: 平仓时也缺少 `posSide` 参数
+**位置**: `execute_close_position()` 函数（第1032-1050行）
+**修复**: 添加根据持仓方向设置的 `posSide` 参数
+
+```python
+# 平仓时根据持仓方向设置 posSide
+posSide = 'long' if side == 'long' else 'short'
+close_params = {
+    'tdMode': 'cross',
+    'posSide': posSide,  # ✅ 必须指定
+    'reduceOnly': True,
+    'tag': '60bb4a8d3416BCDE'
+}
+```
+
+### 止盈止损订单也需要 posSide（新增）
+**问题**: 设置止盈止损时缺少 `posSide` 参数
+**位置**: `set_stop_orders()` 函数（第777-840行）
+**修复**: 为所有止盈止损订单添加 `posSide` 参数
+
+- 多仓止盈止损: `posSide: 'long'`
+- 空仓止盈止损: `posSide: 'short'`
+
 ## 验证方法
 
 1. **查看日志**
@@ -110,6 +136,8 @@ order_response = exchange.create_market_order(
 
 - ✅ 开多仓时：`posSide: 'long'`，不应再出现 51000 错误
 - ✅ 开空仓时：`posSide: 'short'`，不应再出现 51000 错误
+- ✅ 平仓时：根据持仓方向设置正确的 `posSide`
+- ✅ 止盈止损：根据持仓方向设置正确的 `posSide`
 - ✅ 订单应成功提交到 OKX
 
 ## 相关文档

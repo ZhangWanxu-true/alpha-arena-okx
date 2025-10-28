@@ -786,6 +786,7 @@ def set_stop_orders(position_info, stop_loss_price, take_profit_price):
                     price=None,
                     params={
                         **order_params,
+                        'posSide': 'long',  # ✅ 指定平多仓
                         'stopLossPrice': stop_loss_price,
                         'reduceOnly': True
                     }
@@ -801,6 +802,7 @@ def set_stop_orders(position_info, stop_loss_price, take_profit_price):
                     price=take_profit_price,
                     params={
                         **order_params,
+                        'posSide': 'long',  # ✅ 指定平多仓
                         'reduceOnly': True
                     }
                 )
@@ -816,6 +818,7 @@ def set_stop_orders(position_info, stop_loss_price, take_profit_price):
                     price=None,
                     params={
                         **order_params,
+                        'posSide': 'short',  # ✅ 指定平空仓
                         'stopLossPrice': stop_loss_price,
                         'reduceOnly': True
                     }
@@ -831,6 +834,7 @@ def set_stop_orders(position_info, stop_loss_price, take_profit_price):
                     price=take_profit_price,
                     params={
                         **order_params,
+                        'posSide': 'short',  # ✅ 指定平空仓
                         'reduceOnly': True
                     }
                 )
@@ -1030,8 +1034,11 @@ def execute_close_position(current_position, reason="手动平仓"):
         print(f"{'='*50}\n")
 
         # 平仓参数
+        # ✅ 添加 posSide 参数：根据持仓方向平仓
+        posSide = 'long' if side == 'long' else 'short'
         close_params = {
             'tdMode': 'cross',
+            'posSide': posSide,  # ✅ 必须指定要平哪边的仓
             'reduceOnly': True,
             'tag': '60bb4a8d3416BCDE'
         }

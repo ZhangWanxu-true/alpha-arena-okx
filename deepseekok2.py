@@ -34,6 +34,7 @@ import json
 import requests
 from datetime import datetime, timedelta
 import pytz
+from rate_limiter import monitored_request, get_rate_limit_stats
 load_dotenv()
 
 # 初始化AI客户端
@@ -167,8 +168,8 @@ def setup_exchange():
         )
         print(f"✅ 设置杠杆倍数: {TRADE_CONFIG['leverage']}x")
 
-        # 获取余额
-        balance = exchange.fetch_balance()
+        # ✅ 获取余额（使用限流保护）
+        balance = _fetch_balance_from_exchange()
         usdt_balance = balance['USDT']['free']
         total_equity = balance['USDT']['total']
         print(f"💰 当前USDT余额: {usdt_balance:.2f} USDT")
@@ -367,12 +368,22 @@ def get_market_trend(df):
         return {}
 
 
+@monitored_request
+def _fetch_ohlcv_from_exchange():
+    """从交易所获取K线数据（带限流保护）"""
+    return exchange.fetch_ohlcv(TRADE_CONFIG['symbol'], TRADE_CONFIG['timeframe'],
+                               limit=TRADE_CONFIG['data_points'])
+
+@monitored_request
+def _fetch_balance_from_exchange():
+    """从交易所获取余额数据（带限流保护）"""
+    return exchange.fetch_balance()
+
 def get_btc_ohlcv_enhanced():
-    """增强版：获取BTC K线数据并计算技术指标"""
+    """增强版：获取BTC K线数据并计算技术指标（带限流保护）"""
     try:
-        # 获取K线数据
-        ohlcv = exchange.fetch_ohlcv(TRADE_CONFIG['symbol'], TRADE_CONFIG['timeframe'],
-                                     limit=TRADE_CONFIG['data_points'])
+        # ✅ 使用限流保护的API调用
+        ohlcv = _fetch_ohlcv_from_exchange()
 
         df = pd.DataFrame(ohlcv, columns=['timestamp', 'open', 'high', 'low', 'close', 'volume'])
         df['timestamp'] = pd.to_datetime(df['timestamp'], unit='ms')
@@ -458,8 +469,13 @@ def generate_technical_analysis_text(price_data):
     return analysis_text
 
 
+@monitored_request
+def _fetch_positions_from_exchange(symbol):
+    """从交易所获取持仓数据（带限流保护）"""
+    return exchange.fetch_positions([symbol])
+
 def get_current_position(use_cache=True):
-    """获取当前持仓情况 - OKX版本（支持缓存）"""
+    """获取当前持仓情况 - OKX版本（支持缓存+限流保护）"""
     global position_cache
 
     # ✅ 检查缓存
@@ -472,7 +488,8 @@ def get_current_position(use_cache=True):
 
     try:
         print(f"🔄 从OKX获取最新持仓数据...")
-        positions = exchange.fetch_positions([TRADE_CONFIG['symbol']])
+        # ✅ 使用限流保护的API调用
+        positions = _fetch_positions_from_exchange(TRADE_CONFIG['symbol'])
 
         for pos in positions:
             if pos['symbol'] == TRADE_CONFIG['symbol']:
@@ -1167,8 +1184,8 @@ def execute_trade(signal_data, price_data):
         return
 
     try:
-        # 获取账户余额
-        balance = exchange.fetch_balance()
+        # ✅ 获取账户余额（使用限流保护）
+        balance = _fetch_balance_from_exchange()
         usdt_balance = balance['USDT']['free']
 
         # 🔄 根据USDT金额计算BTC数量
@@ -1512,8 +1529,8 @@ def test_order_amount():
 
         print(f"{'='*60}\n")
 
-        # 获取账户余额
-        balance = exchange.fetch_balance()
+        # ✅ 获取账户余额（使用限流保护）
+        balance = _fetch_balance_from_exchange()
         usdt_balance = balance['USDT']['free']
 
         if margin_usdt > usdt_balance:
@@ -1601,7 +1618,7 @@ def trading_bot():
 
         # 3. 更新Web数据
         try:
-            balance = exchange.fetch_balance()
+            balance = _fetch_balance_from_exchange()
             current_equity = balance['USDT']['total']
 
             # 设置初始余额
@@ -1659,6 +1676,15 @@ def trading_bot():
         # 更新性能统计
         if web_data['current_position']:
             web_data['performance']['total_profit'] = web_data['current_position'].get('unrealized_pnl', 0)
+
+        # ✅ 显示限流统计信息
+        stats = get_rate_limit_stats()
+        print(f"\n📊 API限流统计:")
+        print(f"   总请求: {stats['total_requests']}")
+        print(f"   成功请求: {stats['successful_requests']}")
+        print(f"   限流次数: {stats['rate_limited_requests']}")
+        print(f"   成功率: {stats['success_rate']:.1f}%")
+        print(f"   请求频率: {stats['requests_per_minute']:.1f}/分钟")
 
         # 4. 执行交易
         execute_trade(signal_data, price_data)

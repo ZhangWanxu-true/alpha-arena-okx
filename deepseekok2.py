@@ -106,6 +106,13 @@ price_history = []
 signal_history = []
 position = None
 
+# ✅ 持仓数据缓存机制
+position_cache = {
+    'data': None,
+    'timestamp': None,
+    'ttl': 5  # 5秒缓存
+}
+
 # Web展示相关的全局数据存储
 web_data = {
     'account_info': {},
@@ -451,9 +458,20 @@ def generate_technical_analysis_text(price_data):
     return analysis_text
 
 
-def get_current_position():
-    """获取当前持仓情况 - OKX版本"""
+def get_current_position(use_cache=True):
+    """获取当前持仓情况 - OKX版本（支持缓存）"""
+    global position_cache
+
+    # ✅ 检查缓存
+    if use_cache and position_cache['data']:
+        now = datetime.now()
+        cache_age = (now - position_cache['timestamp']).total_seconds()
+        if cache_age < position_cache['ttl']:
+            print(f"📋 使用缓存持仓数据 (缓存时间: {cache_age:.1f}秒)")
+            return position_cache['data']
+
     try:
+        print(f"🔄 从OKX获取最新持仓数据...")
         positions = exchange.fetch_positions([TRADE_CONFIG['symbol']])
 
         for pos in positions:
@@ -461,7 +479,7 @@ def get_current_position():
                 contracts = float(pos['contracts']) if pos['contracts'] else 0
 
                 if contracts > 0:
-                    return {
+                    result = {
                         'side': pos['side'],  # 'long' or 'short'
                         'size': contracts,
                         'entry_price': float(pos['entryPrice']) if pos['entryPrice'] else 0,
@@ -470,10 +488,26 @@ def get_current_position():
                         'symbol': pos['symbol']
                     }
 
+                    # ✅ 更新缓存
+                    position_cache['data'] = result
+                    position_cache['timestamp'] = datetime.now()
+                    print(f"✅ 持仓数据已缓存")
+                    return result
+
+        # ✅ 无持仓也更新缓存
+        position_cache['data'] = None
+        position_cache['timestamp'] = datetime.now()
+        print(f"✅ 无持仓状态已缓存")
         return None
 
     except Exception as e:
-        print(f"获取持仓失败: {e}")
+        print(f"❌ 获取持仓失败: {e}")
+
+        # ✅ 如果有缓存数据，返回缓存（降级处理）
+        if position_cache['data'] is not None:
+            print(f"⚠️ 使用缓存数据作为降级方案")
+            return position_cache['data']
+
         import traceback
         traceback.print_exc()
         return None
@@ -592,8 +626,8 @@ def analyze_with_deepseek(price_data):
 
     print(sentiment_text)
 
-    # 添加当前持仓信息
-    current_pos = get_current_position()
+    # ✅ 添加当前持仓信息（使用缓存）
+    current_pos = get_current_position(use_cache=True)
     position_text = "无持仓" if not current_pos else f"{current_pos['side']}仓, 数量: {current_pos['size']}, 盈亏: {current_pos['unrealized_pnl']:.2f}USDT"
     pnl_text = f", 持仓盈亏: {current_pos['unrealized_pnl']:.2f} USDT" if current_pos else ""
 
@@ -1031,8 +1065,8 @@ def execute_close_position(current_position, reason="手动平仓"):
         print(f"   原始持仓数量: {current_position['size']}")
         print(f"{'='*50}\n")
 
-        # 重新获取最新持仓状态
-        latest_position = get_current_position()
+        # ✅ 重新获取最新持仓状态（平仓前必须确认）
+        latest_position = get_current_position(use_cache=False)  # 强制获取最新数据
         if not latest_position:
             print("✅ 持仓已不存在，无需平仓")
             return True
@@ -1080,8 +1114,8 @@ def execute_close_position(current_position, reason="手动平仓"):
         # 等待订单完成
         time.sleep(2)
 
-        # 验证平仓
-        new_position = get_current_position()
+        # ✅ 验证平仓（使用缓存，避免频繁API调用）
+        new_position = get_current_position(use_cache=True)
         if not new_position:
             print(f"✅ 平仓成功，当前无持仓\n")
             return True
@@ -1107,7 +1141,8 @@ def execute_trade(signal_data, price_data):
         return
 
     # 🛡️ 防御性检查2：如果有持仓，不应该调用此函数（由trading_bot保证）
-    current_position = get_current_position()
+    # ✅ 使用缓存检查，避免不必要的API调用
+    current_position = get_current_position(use_cache=True)
     if current_position:
         print(f"⚠️ 警告：检测到持仓但仍调用execute_trade，这不应该发生！")
         print(f"   当前持仓: {current_position['side']} {current_position['size']} BTC")
@@ -1291,8 +1326,8 @@ def execute_trade(signal_data, price_data):
         print("✅ 订单提交成功")
         time.sleep(2)
 
-        # 获取最新持仓并显示详细信息
-        position = get_current_position()
+        # ✅ 获取最新持仓并显示详细信息（使用缓存）
+        position = get_current_position(use_cache=True)
         print(f"\n{'='*50}")
         print(f"📈 更新后持仓信息:")
         if position:
@@ -1523,7 +1558,8 @@ def trading_bot():
         print(f"价格变化: {price_data['price_change']:+.2f}%")
 
         # 2. 检查是否需要平仓（如果有持仓）
-        current_position = get_current_position()
+        # ✅ 只调用一次 get_current_position，然后传递结果
+        current_position = get_current_position(use_cache=True)
         if current_position:
             print(f"\n{'='*60}")
             print(f"💼 当前持有{current_position['side']}仓")
@@ -1532,7 +1568,7 @@ def trading_bot():
             print(f"   盈亏: {current_position['unrealized_pnl']:+.2f} USDT")
             print(f"{'='*60}")
 
-            # AI检查是否应该平仓
+            # AI检查是否应该平仓（传递持仓数据，避免重复调用）
             close_decision = check_close_position(current_position, price_data)
 
             if close_decision:
@@ -1544,7 +1580,7 @@ def trading_bot():
                 print(f"   紧急程度: {urgency}")
                 print(f"   理由: {reason}")
 
-                # 执行平仓
+                # 执行平仓（传递持仓数据，避免重复调用）
                 if execute_close_position(current_position, reason):
                     print(f"✅ 平仓完成，本次周期结束")
                     # 平仓成功后，本周期结束，等待下一个周期再分析是否开新仓
@@ -1577,8 +1613,7 @@ def trading_bot():
                 'total_equity': current_equity
             }
 
-            # 记录收益曲线数据
-            current_position = get_current_position()
+            # 记录收益曲线数据（使用已获取的持仓数据）
             unrealized_pnl = current_position.get('unrealized_pnl', 0) if current_position else 0
             total_profit = current_equity - initial_balance
             profit_rate = (total_profit / initial_balance * 100) if initial_balance > 0 else 0
@@ -1600,7 +1635,8 @@ def trading_bot():
             print(f"更新余额失败: {e}")
 
         web_data['current_price'] = price_data['price']
-        web_data['current_position'] = get_current_position()
+        # ✅ 使用已获取的持仓数据，避免重复调用
+        web_data['current_position'] = current_position
         web_data['last_update'] = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
 
         # 保存K线数据

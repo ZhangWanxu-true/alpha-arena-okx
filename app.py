@@ -2,7 +2,7 @@
 宝塔面板部署入口文件
 整合Web服务 + 进程守护 + 交易机器人
 """
-from flask import Flask, jsonify, render_template
+from flask import Flask, jsonify, render_template, request, abort
 from flask_cors import CORS
 import threading
 import time
@@ -33,6 +33,51 @@ app = Flask(__name__,
             template_folder=os.path.join(BASE_DIR, 'templates'),
             static_folder=os.path.join(BASE_DIR, 'static'))
 CORS(app)
+
+# ==================== 基础安全防护（基于实际攻击日志） ====================
+# 拦截常见扫描/敏感路径与异常协议请求，减少 400/404 垃圾流量
+FORBIDDEN_PATH_KEYWORDS = [
+    ".git", ".env", "/admin", "wp-login", "phpmyadmin", "/etc/passwd", "/login",
+    "geoserver", "shadowserver", "/web/"
+]
+
+@app.before_request
+def security_filters():
+    # 1) 仅允许常规方法
+    if request.method not in ("GET", "POST"):
+        abort(405)
+
+    # 2) 拦截 CONNECT（代理/端口扫描特征）
+    if request.method == "CONNECT":
+        abort(405)
+
+    # 3) 路径关键词黑名单（.git/.env/geoserver/wp-login 等）
+    path_lower = (request.path or "").lower()
+    if any(k in path_lower for k in FORBIDDEN_PATH_KEYWORDS):
+        abort(403)
+
+    # 4) 基础协议健壮性：必须是 HTTP 协议，UA 不得为空
+    if not (request.environ.get('SERVER_PROTOCOL', 'HTTP/1.1').startswith('HTTP/')):
+        abort(400)
+    ua = request.headers.get('User-Agent', '')
+    if not ua or len(ua) < 4:
+        abort(400)
+
+@app.errorhandler(400)
+def _bad_request(e):
+    return jsonify({"error": "BAD_REQUEST"}), 400
+
+@app.errorhandler(403)
+def _forbidden(e):
+    return jsonify({"error": "FORBIDDEN"}), 403
+
+@app.errorhandler(404)
+def _not_found(e):
+    return jsonify({"error": "NOT_FOUND"}), 404
+
+@app.errorhandler(405)
+def _method_not_allowed(e):
+    return jsonify({"error": "METHOD_NOT_ALLOWED"}), 405
 
 # 全局变量
 trading_bot_thread = None

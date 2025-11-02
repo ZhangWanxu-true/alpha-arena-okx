@@ -85,12 +85,12 @@ exchange = ccxt.okx({
 # - 示例：配置100 USDT → 自动调整为115 USDT买入0.01 BTC
 # ============================================
 TRADE_CONFIG = {
-    'symbol': 'ETH/USDT:USDT',  # OKX的合约符号格式
+    'symbol': 'VIRTUAL/USDT:USDT',  # OKX的合约符号格式
     'margin_usdt': 120,  # 🔧 修改这里：每次交易投入的保证金(USDT)
     'leverage': 10,  # 🔧 修改这里：杠杆倍数 (建议10-20倍)
     'position_usdt': None,  # 自动计算：实际开仓金额 = margin_usdt * leverage
     'timeframe': '15m',  # 使用15分钟K线
-    'test_mode': False,  # 🔧 测试模式：True=模拟不下单，False=真实交易
+    'test_mode': True,  # 🔧 测试模式：True=模拟不下单，False=真实交易
     'data_points': 96,  # 24小时数据（96根15分钟K线）
     'analysis_periods': {
         'short_term': 20,  # 短期均线
